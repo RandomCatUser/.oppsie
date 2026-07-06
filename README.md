@@ -39,6 +39,8 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 ├── tests/                # Test Suite
 │   ├── test_codec.py     # Roundtrip and lossy correctness unit tests
 │   └── test_converter.py # Format conversion and batch unit tests
+├── run_app.batch         # Run the convertor without using commands
+├── run_viewer.batch      # Run the image viewer without using commands
 ├── README.md             # Project overview and guide
 └── requirements.txt      # Dependency listing
 ```
