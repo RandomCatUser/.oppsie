@@ -732,7 +732,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setWindowTitle("Oppsie Convert")
-        self.resize(980, 720)O
+        self.resize(980, 720)
         self.setMinimumSize(820, 580)
 
         self._worker: Optional[ConversionWorker] = None
