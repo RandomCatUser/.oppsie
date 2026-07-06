@@ -693,7 +693,7 @@ class TitleBar(QtWidgets.QWidget):
         self.icon_label.setObjectName("titleIcon")
         layout.addWidget(self.icon_label)
 
-        self.title_label = QtWidgets.QLabel("Fast Convert")
+        self.title_label = QtWidgets.QLabel("Oppsie Convert")
         self.title_label.setObjectName("titleText")
         layout.addWidget(self.title_label)
 
@@ -731,8 +731,8 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        self.setWindowTitle("Fast Convert")
-        self.resize(980, 720)
+        self.setWindowTitle("Oppsie Convert")
+        self.resize(980, 720)O
         self.setMinimumSize(820, 580)
 
         self._worker: Optional[ConversionWorker] = None
