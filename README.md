@@ -9,10 +9,10 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 - **Custom Format Spec (`.oppsie`)**: High-performance, simple byte-level encoding utilizing run-length encoding (RLE), color differences, luma differences, and a running palette of the last 64 seen pixels.
 - **Lossless & Lossy Modes**: Native support for 1-7 bit color quantization in the flags header to dramatically reduce file sizes on photographs and gradients.
 - **EXIF Metadata Passthrough**: Custom EXIF chunk injection at the tail of the pixel stream ensuring JPEG EXIF metadata is preserved in round-trip conversions.
-- **TUI Dashboard**: A premium, mouse-clickable retro-styled console interface featuring:
+- **GUI Dashboard**: A premium, mouse-clickable retro-styled console interface featuring:
   - Sound-free terminal boot animation on launch.
   - Interactive file browser.
-  - Side-by-side CRT-inspired "pixel-art" previews with real-time green scanline animations.
+  - Side-by-side previews with real-time.
   - Controls for target format selection, lossy quantization depth, and conversion runs.
   - Responsive layout (supports mouse-click controls and keyboard shortcuts like `o` for open, `c` for convert, `q` for quit).
 - **Batch Converter**: Convert entire folders of PNG, JPEG, WebP, BMP, and GIF images to and from `.oppsie`.
@@ -57,7 +57,7 @@ Install dependencies (Pillow, Textual, and Rich):
 pip install pillow textual rich
 ```
 
-### 2. Running the TUI App
+### 2. Running the GUI App
 
 You can launch the retro terminal dashboard using any of the following:
 
@@ -157,4 +157,4 @@ Run unit tests covering roundtrip verification, transparency correctness, and CL
 python -m unittest discover tests/
 ```
 
-### This is only a joke that I built to impress my best friend so you know :3
+**This is only a joke that I built to impress my best friend so you know :3**
