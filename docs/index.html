@@ -56,9 +56,10 @@
             color: #fafafa; 
         }
         
-        /* Custom Prose Overrides for Spacing & Tables */
+        /* Custom Prose Overrides */
         .prose h1 { margin-top: 0; margin-bottom: 1rem; font-size: 2.25rem; }
-        .prose h3 { margin-top: 2rem; margin-bottom: 0.75rem; font-size: 1.25rem; font-weight: 600; }
+        .prose h2 { margin-top: 2rem; margin-bottom: 1rem; font-size: 1.75rem; font-weight: 700; }
+        .prose h3 { margin-top: 1.5rem; margin-bottom: 0.75rem; font-size: 1.25rem; font-weight: 600; }
         .prose p { margin-top: 0.75rem; margin-bottom: 0.75rem; }
         .prose ul { margin-top: 1rem; margin-bottom: 1rem; padding-left: 1.5rem; list-style-type: disc; }
         .prose li { margin-top: 0.5rem; margin-bottom: 0.5rem; padding-left: 0.5rem; }
@@ -103,42 +104,15 @@
             display: block;
             overflow-x: auto;
         }
-        .prose thead {
-            border-bottom: 2px solid #d1d5db;
-        }
-        .dark .prose thead {
-            border-bottom-color: #3f3f46;
-        }
-        .prose th {
-            border: none;
-            padding: 0.75rem 1rem;
-            text-align: left;
-            font-weight: 600;
-            background-color: transparent;
-            white-space: nowrap;
-        }
-        .prose td {
-            border: none;
-            padding: 0.75rem 1rem;
-            text-align: left;
-            vertical-align: top;
-        }
-        .prose tbody tr {
-            border-bottom: 1px solid #e5e7eb;
-            background-color: transparent;
-        }
-        .dark .prose tbody tr {
-            border-bottom-color: #27272a;
-        }
-        .prose tbody tr:last-child {
-            border-bottom: none;
-        }
-        .prose tbody tr:nth-child(even) {
-            background-color: #f9fafb;
-        }
-        .dark .prose tbody tr:nth-child(even) {
-            background-color: #18181b;
-        }
+        .prose thead { border-bottom: 2px solid #d1d5db; }
+        .dark .prose thead { border-bottom-color: #3f3f46; }
+        .prose th { border: none; padding: 0.75rem 1rem; text-align: left; font-weight: 600; white-space: nowrap; }
+        .prose td { border: none; padding: 0.75rem 1rem; text-align: left; vertical-align: top; }
+        .prose tbody tr { border-bottom: 1px solid #e5e7eb; }
+        .dark .prose tbody tr { border-bottom-color: #27272a; }
+        .prose tbody tr:last-child { border-bottom: none; }
+        .prose tbody tr:nth-child(even) { background-color: #f9fafb; }
+        .dark .prose tbody tr:nth-child(even) { background-color: #18181b; }
     </style>
 </head>
 <body class="antialiased bg-bg-l dark:bg-bg-d text-text-l dark:text-text-d transition-colors duration-300">
@@ -208,64 +182,144 @@
 
             <!-- Main Content -->
             <main class="flex-1 p-6 sm:p-10 md:p-12 overflow-hidden">
-                <div class="max-w-3xl mx-auto prose dark:prose-invert">
-                    
-                    <!-- Introduction Page -->
-                    <section id="page-intro" class="doc-page">
-                        <h1>Introduction</h1>
-                        <p>A lightweight, fast, and simple image format called <strong>.oppsie</strong> (inspired by QOI - Quite OK Image Format), complete with a reference Python codec, batch format converter, and a pair of retro-styled desktop applications.</p>
-                        <p>It features high-performance byte-level encoding, lossless & lossy modes, EXIF passthrough, and beautifully crafted Windows 95 / 90s themed desktop apps built with PyQt5 and Tkinter.</p>
-                        <pre><code class="language-bash">pip install requirements.txt</code></pre>
-                        <div class="not-prose border-l-4 border-brand dark:border-white pl-4 py-2 my-6 bg-gray-50 dark:bg-zinc-900 rounded-r-lg">
-                            <p class="text-sm font-medium m-0 text-text-l dark:text-text-d">⚠️ Note: This project was built as a joke to impress my best friend :3</p>
+                
+                <!-- Introduction Page (Beautified) -->
+                <section id="page-intro" class="doc-page">
+                    <!-- Hero Section -->
+                    <div class="not-prose mb-12">
+                        <span class="inline-block px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 rounded-full mb-4 border border-blue-100 dark:border-blue-900">Python Image Codec & GUI</span>
+                        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-text-l dark:text-text-d">
+                            Welcome to <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-cyan-400">.oppsie</span>
+                        </h1>
+                        <p class="text-lg md:text-xl text-text-muted-l dark:text-text-muted-d max-w-2xl mb-8">
+                            A lightweight, fast, and simple image format inspired by QOI (Quite OK Image Format). Complete with a reference Python codec, batch converter, and retro-styled desktop applications.
+                        </p>
+                        <div class="flex flex-wrap gap-4">
+                            <button onclick="showPage('install', event)" class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand dark:bg-white text-white dark:text-brand rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                Get Started
+                            </button>
+                            <a href="https://github.com/RandomCatUser/.oppsie" target="_blank" class="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 dark:border-zinc-700 text-text-l dark:text-text-d rounded-lg font-semibold text-sm hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"></path></svg>
+                                View on GitHub
+                            </a>
                         </div>
-                    </section>
+                    </div>
 
-                    <!-- Installation Page -->
-                    <section id="page-install" class="doc-page hidden">
-                        <h1>Getting Started</h1>
-                        <h3>1. Installation</h3>
-                        <p>Install dependencies (Pillow, PyQt5):</p>
-                        <pre><code class="language-bash">pip install requirements.txt</code></pre>
+                    <!-- Feature Grid -->
+                    <div class="not-prose grid grid-cols-1 md:grid-cols-3 gap-4 mb-12 border-t border-b border-gray-100 dark:border-zinc-800 py-8">
+                        <div>
+                            <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center mb-3 text-blue-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            </div>
+                            <h3 class="font-semibold text-text-l dark:text-text-d mb-1">High Performance</h3>
+                            <p class="text-sm text-text-muted-l dark:text-text-muted-d">Byte-level encoding with RLE, color differences, and luma differences.</p>
+                        </div>
+                        <div>
+                            <div class="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center mb-3 text-purple-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                            </div>
+                            <h3 class="font-semibold text-text-l dark:text-text-d mb-1">Lossy & Lossless</h3>
+                            <p class="text-sm text-text-muted-l dark:text-text-muted-d">Native 1-7 bit color quantization support for optimized file sizes.</p>
+                        </div>
+                        <div>
+                            <div class="w-10 h-10 rounded-lg bg-green-50 dark:bg-green-950/50 flex items-center justify-center mb-3 text-green-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            </div>
+                            <h3 class="font-semibold text-text-l dark:text-text-d mb-1">Retro GUI Apps</h3>
+                            <p class="text-sm text-text-muted-l dark:text-text-muted-d">Windows 95 & 90s themed Tkinter/PyQt5 desktop applications.</p>
+                        </div>
+                    </div>
+
+                    <!-- Standard Content Section -->
+                    <div class="prose dark:prose-invert max-w-none">
+                        <h2>Overview</h2>
+                        <p>The <code>.oppsie</code> format is designed to be a simple, understandable alternative to complex modern image formats. It utilizes a running palette of the last 64 seen pixels to achieve impressive compression ratios while maintaining blazing fast encode/decode times in pure Python.</p>
+                        <p>This repository contains everything you need to encode, decode, view, and batch convert your images, complete with EXIF metadata passthrough to ensure your JPEG data is preserved in round-trip conversions.</p>
                         
-                        <h3>2. Running the Converter GUI App (PyQt5)</h3>
-                        <p>You can launch the Windows 95-themed conversion dashboard using any of the following:</p>
+                        <div class="not-prose border-l-4 border-amber-400 dark:border-amber-500 pl-4 py-2 my-6 bg-amber-50 dark:bg-amber-950/30 rounded-r-lg">
+                            <p class="text-sm font-medium m-0 text-amber-800 dark:text-amber-200">⚠️ Note: This project was built as a joke to impress my best friend :3</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Installation Page -->
+                <section id="page-install" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Installation</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Get .oppsie up and running on your local machine in just a few minutes.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
+                        <h3>1. Clone the Repository</h3>
+                        <p>Start by cloning the repository to your local machine using Git:</p>
+                        <pre><code class="language-bash">git clone https://github.com/RandomCatUser/.oppsie.git
+cd .oppsie</code></pre>
+                        
+                        <h3>2. Install Dependencies</h3>
+                        <p>Ensure you have Python installed. Then, install the required packages (Pillow, PyQt5, etc.) using the provided requirements file:</p>
+                        <pre><code class="language-bash">pip install -r requirements.txt</code></pre>
+                        
+                        <h3>3. Run the Converter GUI (PyQt5)</h3>
+                        <p>Launch the Windows 95-themed conversion dashboard using either method:</p>
                         <ul>
-                            <li><strong>Windows Batch File</strong>: Double-click <code>run_app.bat</code> in the project root directory.</li>
-                            <li><strong>Python CLI</strong>: Run the following in your terminal:</li>
+                            <li><strong>Windows Batch</strong>: Double-click <code>run_app.bat</code> in the project root directory.</li>
+                            <li><strong>Python CLI</strong>: Run the following command in your terminal:</li>
                         </ul>
                         <pre><code class="language-bash">python app/main.py</code></pre>
 
-                        <h3>3. Running the Image Viewer (Tkinter)</h3>
-                        <p>Open the standalone 90s-themed image viewer:</p>
+                        <h3>4. Run the Image Viewer (Tkinter)</h3>
+                        <p>Open the standalone 90s-themed image viewer using either method:</p>
                         <ul>
-                            <li><strong>Windows Batch File</strong>: Double-click <code>run_viewer.bat</code> in the project root directory.</li>
-                            <li><strong>Python CLI</strong>: Run the following in your terminal:</li>
+                            <li><strong>Windows Batch</strong>: Double-click <code>run_viewer.bat</code> in the project root directory.</li>
+                            <li><strong>Python CLI</strong>: Run the following command in your terminal:</li>
                         </ul>
                         <pre><code class="language-bash">python app/gui.py</code></pre>
 
-                        <h3>4. Interactive Jupyter Demo</h3>
-                        <p>Open the interactive notebook <code>demo.ipynb</code> in Jupyter to experiment:</p>
+                        <h3>5. Interactive Jupyter Demo</h3>
+                        <p>Experiment step-by-step with the code using Jupyter Notebook:</p>
                         <pre><code class="language-bash">jupyter notebook demo.ipynb</code></pre>
-                    </section>
+                    </div>
+                </section>
 
-                    <!-- Features Page -->
-                    <section id="page-features" class="doc-page hidden">
-                        <h1>Features</h1>
+                <!-- Features Page -->
+                <section id="page-features" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Features</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Everything packed into the .oppsie ecosystem.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
                         <ul>
                             <li><strong>Custom Format Spec (`.oppsie`)</strong>: High-performance, simple byte-level encoding utilizing run-length encoding (RLE), color differences, luma differences, and a running palette of the last 64 seen pixels.</li>
-                            <li><strong>Lossless & Lossy Modes</strong>: Native support for 1-7 bit color quantization in the flags header to dramatically reduce file sizes.</li>
-                            <li><strong>EXIF Metadata Passthrough</strong>: Custom EXIF chunk injection at the tail of the pixel stream ensuring JPEG EXIF metadata is preserved.</li>
-                            <li><strong>GUI Converter App (PyQt5)</strong>: A feature-rich Windows 95-themed conversion dashboard with frameless rounded window, drag-and-drop queue, animated glowing progress bar, and hover-to-preview thumbnails.</li>
-                            <li><strong>Image Viewer App (Tkinter)</strong>: A standalone 90s-themed image viewer with classic 3D raised/sunken borders, zoom/pan, fit-to-window, and mouse wheel support. Opens `.oppsie`, PNG, JPEG, BMP, WebP, and GIF.</li>
+                            <li><strong>Lossless & Lossy Modes</strong>: Native support for 1-7 bit color quantization in the flags header to dramatically reduce file sizes on photographs and gradients.</li>
+                            <li><strong>EXIF Metadata Passthrough</strong>: Custom EXIF chunk injection at the tail of the pixel stream ensuring JPEG EXIF metadata is preserved in round-trip conversions.</li>
+                            <li><strong>GUI Converter App (PyQt5)</strong>: A feature-rich Windows 95-themed conversion dashboard with:
+                                <ul>
+                                    <li>Frameless rounded window with custom title bar.</li>
+                                    <li>Drag-and-drop file queue with per-file format targeting.</li>
+                                    <li>Animated glowing progress bar and status indicator.</li>
+                                    <li>Hover-to-preview thumbnails and keyboard shortcuts (<code>Ctrl+O</code>, <code>Ctrl+Enter</code>, <code>Delete</code>, <code>Esc</code>, <code>F1</code>).</li>
+                                </ul>
+                            </li>
+                            <li><strong>Image Viewer App (Tkinter)</strong>: A standalone 90s-themed image viewer with:
+                                <ul>
+                                    <li>Classic Windows 95-style 3D raised/sunken borders.</li>
+                                    <li>Zoom, pan (click-and-drag), fit-to-window, and reset controls.</li>
+                                    <li>Mouse wheel zoom support.</li>
+                                    <li>Opens `.oppsie`, PNG, JPEG, BMP, WebP, and GIF files.</li>
+                                </ul>
+                            </li>
                             <li><strong>Batch Converter</strong>: Convert entire folders of PNG, JPEG, WebP, BMP, and GIF images to and from `.oppsie`.</li>
                         </ul>
-                    </section>
+                    </div>
+                </section>
 
-                    <!-- Usage Page -->
-                    <section id="page-usage" class="doc-page hidden">
-                        <h1>CLI Conversion Examples</h1>
-                        
+                <!-- Usage Page -->
+                <section id="page-usage" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Usage & CLI</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Command line examples for converting images.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
                         <h3>Convert to lossless</h3>
                         <pre><code class="language-bash">python converter/to_oppsie.py my_photo.png output.oppsie</code></pre>
                         
@@ -277,12 +331,17 @@
                         
                         <h3>Batch convert folder</h3>
                         <pre><code class="language-bash">python converter/batch_runner.py ./my_images ./converted_opps oppsie</code></pre>
-                    </section>
+                    </div>
+                </section>
 
-                    <!-- Benchmarks Page -->
-                    <section id="page-benchmarks" class="doc-page hidden">
-                        <h1>Benchmark Results</h1>
-                        <p>Running <code>python oppsie/benchmark.py</code> yields the following on 512x512 samples.</p>
+                <!-- Benchmarks Page -->
+                <section id="page-benchmarks" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Benchmark Results</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Performance metrics on 512x512 sample images.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
+                        <p>Running <code>python oppsie/benchmark.py</code> yields the following results:</p>
                         
                         <h3>Flat Graphic (512x512, RGB)</h3>
                         <p><em>Consists of solid blocks of color, text, and clean shapes.</em></p>
@@ -324,11 +383,16 @@
                                 <tr><td>WebP (Lossless)</td><td>0.18 KB</td><td>16.18 ms</td><td>0.28 ms</td></tr>
                             </tbody>
                         </table>
-                    </section>
+                    </div>
+                </section>
 
-                    <!-- Analysis Page -->
-                    <section id="page-analysis" class="doc-page hidden">
-                        <h1>Codec Analysis</h1>
+                <!-- Analysis Page -->
+                <section id="page-analysis" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Codec Analysis</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Deep dive into performance and quantization behavior.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
                         <h3>1. Python vs Native Timings</h3>
                         <p>PNG, JPEG, and WebP encode/decode times in our benchmark are exceptionally fast because they call compiled C libraries (libpng, libjpeg, libwebp) wrapped inside Pillow. Our reference <code>.oppsie</code> codec is written in pure Python, making its performance (100–400 ms) very impressive for a byte-level loop.</p>
                         
@@ -337,11 +401,16 @@
                             <li><strong>For Photographs/Gradients:</strong> Quantization (<code>flags > 0</code>) works wonders, reducing size from 257.02 KB down to 31.55 KB (an 87.7% reduction).</li>
                             <li><strong>For Pixel Art/Flat Graphics:</strong> Applying heavy quantization (e.g. L5) can actually <em>increase</em> file size. This occurs because quantization creates large steps in color value. When adjacent colors shift from one quantized bin to another, the differences exceed the threshold of <code>OPPS_DIFF</code> ([-2, 1]) and <code>OPPS_LUMA</code> ([-32, 31]), forcing the encoder to emit raw <code>OPPS_RGB</code> chunks (4 bytes) instead of compact 1 or 2-byte difference chunks.</li>
                         </ul>
-                    </section>
+                    </div>
+                </section>
 
-                    <!-- Structure Page -->
-                    <section id="page-structure" class="doc-page hidden">
-                        <h1>Repository Structure</h1>
+                <!-- Structure Page -->
+                <section id="page-structure" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Repository Structure</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Directory layout of the project.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
                         <pre><code class="language-bash">├── oppsie/               # Codec Library
 │   ├── __init__.py       # Package entry exposing encode() and decode()
 │   ├── encoder.py        # Raw pixels -> .oppsie byte stream
@@ -372,19 +441,24 @@
 ├── README.md             # Project overview and guide
 ├── requirements.txt      # Dependency listing
 └── LICENSE               # License file</code></pre>
-                    </section>
+                    </div>
+                </section>
 
-                    <!-- Testing Page -->
-                    <section id="page-testing" class="doc-page hidden">
-                        <h1>Testing</h1>
+                <!-- Testing Page -->
+                <section id="page-testing" class="doc-page hidden">
+                    <div class="not-prose mb-8">
+                        <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-text-l dark:text-text-d">Testing</h1>
+                        <p class="text-lg text-text-muted-l dark:text-text-muted-d">Verify roundtrips and format conversions.</p>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
                         <p>Run unit tests covering roundtrip verification, transparency correctness, and CLI conversions:</p>
                         <pre><code class="language-bash">python -m unittest discover tests/</code></pre>
                         <div class="not-prose mt-8 p-4 border border-dashed border-gray-300 dark:border-zinc-700 rounded-lg text-center">
                             <p class="text-sm text-text-muted-l dark:text-text-muted-d m-0">This is only a joke that I built to impress my best friend so you know :3</p>
                         </div>
-                    </section>
+                    </div>
+                </section>
 
-                </div>
             </main>
         </div>
     </div>
