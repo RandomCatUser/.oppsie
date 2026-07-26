@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>.oppsie - Documentation</title>
+    <script>
+        // Prevent dark mode flash
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+                    },
+                    colors: {
+                        'brand': '#0d1117',
+                        'border-l': '#e5e7eb',
+                        'bg-l': '#ffffff',
+                        'bg-soft-l': '#f9fafb',
+                        'text-l': '#111827',
+                        'text-muted-l': '#6b7280',
+                        'border-d': '#27272a',
+                        'bg-d': '#09090b',
+                        'bg-soft-d': '#18181b',
+                        'text-d': '#fafafa',
+                        'text-muted-d': '#a1a1aa',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .nav-link.active { 
+            background-color: #f4f4f5; 
+            color: #0d1117; 
+            font-weight: 600; 
+        }
+        .dark .nav-link.active { 
+            background-color: #27272a; 
+            color: #fafafa; 
+        }
+        
+        /* Custom Prose Overrides for Spacing & Tables */
+        .prose h1 { margin-top: 0; margin-bottom: 1rem; font-size: 2.25rem; }
+        .prose h3 { margin-top: 2rem; margin-bottom: 0.75rem; font-size: 1.25rem; font-weight: 600; }
+        .prose p { margin-top: 0.75rem; margin-bottom: 0.75rem; }
+        .prose ul { margin-top: 1rem; margin-bottom: 1rem; padding-left: 1.5rem; list-style-type: disc; }
+        .prose li { margin-top: 0.5rem; margin-bottom: 0.5rem; padding-left: 0.5rem; }
+        .prose strong { color: inherit; font-weight: 600; }
+        
+        /* Code Blocks */
+        .prose pre {
+            background-color: #f6f8fa;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+        .dark .prose pre {
+            background-color: #0d1117;
+            border-color: #27272a;
+        }
+        .prose code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.85rem;
+            background: transparent;
+            padding: 0;
+            font-weight: 400;
+        }
+        .prose :not(pre) > code {
+            background-color: #eff1f3;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-size: 85%;
+        }
+        .dark .prose :not(pre) > code {
+            background-color: #27272a;
+        }
+
+        /* Table Fixes */
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.875rem;
+            display: block;
+            overflow-x: auto;
+        }
+        .prose thead {
+            border-bottom: 2px solid #d1d5db;
+        }
+        .dark .prose thead {
+            border-bottom-color: #3f3f46;
+        }
+        .prose th {
+            border: none;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            background-color: transparent;
+            white-space: nowrap;
+        }
+        .prose td {
+            border: none;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            vertical-align: top;
+        }
+        .prose tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+            background-color: transparent;
+        }
+        .dark .prose tbody tr {
+            border-bottom-color: #27272a;
+        }
+        .prose tbody tr:last-child {
+            border-bottom: none;
+        }
+        .prose tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        .dark .prose tbody tr:nth-child(even) {
+            background-color: #18181b;
+        }
+    </style>
+</head>
+<body class="antialiased bg-bg-l dark:bg-bg-d text-text-l dark:text-text-d transition-colors duration-300">
+
+    <div class="flex flex-col min-h-screen">
+        
+        <!-- Header -->
+        <header class="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-bg-d/80 border-b border-border-l dark:border-border-d">
+            <div class="max-w-[1400px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <button id="menu-toggle" class="md:hidden text-text-muted-l dark:text-text-muted-d">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </button>
+                    <a href="#" class="flex items-center gap-2 font-bold text-lg">
+                        <span class="bg-brand dark:bg-white text-white dark:text-brand px-2 py-0.5 rounded text-sm tracking-tight">.oppsie</span>
+                        <span class="hidden sm:inline text-text-muted-l dark:text-text-muted-d font-normal text-base">Docs</span>
+                    </a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <a href="https://github.com/RandomCatUser/.oppsie" target="_blank" class="text-sm text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d flex items-center gap-2 transition-colors">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"></path></svg>
+                        <span class="hidden md:inline">GitHub</span>
+                    </a>
+                    <button id="theme-toggle" class="text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d transition-colors">
+                        <svg id="theme-icon-dark" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                        <svg id="theme-icon-light" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex flex-1 max-w-[1400px] w-full mx-auto">
+            
+            <!-- Sidebar -->
+            <aside id="sidebar" class="w-64 fixed md:sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto border-r border-border-l dark:border-border-d bg-bg-l dark:bg-bg-d md:bg-transparent z-40 transition-transform duration-300 -translate-x-full md:translate-x-0">
+                <nav class="p-4 sm:p-6 space-y-6 text-sm">
+                    <div>
+                        <h3 class="font-semibold text-xs text-text-muted-l dark:text-text-muted-d uppercase tracking-wider mb-3">Getting Started</h3>
+                        <ul class="space-y-1">
+                            <li><button onclick="showPage('intro', event)" class="nav-link active w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Introduction</button></li>
+                            <li><button onclick="showPage('install', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Installation</button></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xs text-text-muted-l dark:text-text-muted-d uppercase tracking-wider mb-3">Core</h3>
+                        <ul class="space-y-1">
+                            <li><button onclick="showPage('features', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Features</button></li>
+                            <li><button onclick="showPage('usage', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Usage & CLI</button></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xs text-text-muted-l dark:text-text-muted-d uppercase tracking-wider mb-3">Performance</h3>
+                        <ul class="space-y-1">
+                            <li><button onclick="showPage('benchmarks', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Benchmarks</button></li>
+                            <li><button onclick="showPage('analysis', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Analysis</button></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xs text-text-muted-l dark:text-text-muted-d uppercase tracking-wider mb-3">Project</h3>
+                        <ul class="space-y-1">
+                            <li><button onclick="showPage('structure', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Structure</button></li>
+                            <li><button onclick="showPage('testing', event)" class="nav-link w-full text-left px-3 py-1.5 rounded-md text-text-muted-l dark:text-text-muted-d hover:text-text-l dark:hover:text-text-d hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">Testing</button></li>
+                        </ul>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-6 sm:p-10 md:p-12 overflow-hidden">
+                <div class="max-w-3xl mx-auto prose dark:prose-invert">
+                    
+                    <!-- Introduction Page -->
+                    <section id="page-intro" class="doc-page">
+                        <h1>Introduction</h1>
+                        <p>A lightweight, fast, and simple image format called <strong>.oppsie</strong> (inspired by QOI - Quite OK Image Format), complete with a reference Python codec, batch format converter, and a pair of retro-styled desktop applications.</p>
+                        <p>It features high-performance byte-level encoding, lossless & lossy modes, EXIF passthrough, and beautifully crafted Windows 95 / 90s themed desktop apps built with PyQt5 and Tkinter.</p>
+                        <pre><code class="language-bash">pip install requirements.txt</code></pre>
+                        <div class="not-prose border-l-4 border-brand dark:border-white pl-4 py-2 my-6 bg-gray-50 dark:bg-zinc-900 rounded-r-lg">
+                            <p class="text-sm font-medium m-0 text-text-l dark:text-text-d">⚠️ Note: This project was built as a joke to impress my best friend :3</p>
+                        </div>
+                    </section>
+
+                    <!-- Installation Page -->
+                    <section id="page-install" class="doc-page hidden">
+                        <h1>Getting Started</h1>
+                        <h3>1. Installation</h3>
+                        <p>Install dependencies (Pillow, PyQt5):</p>
+                        <pre><code class="language-bash">pip install requirements.txt</code></pre>
+                        
+                        <h3>2. Running the Converter GUI App (PyQt5)</h3>
+                        <p>You can launch the Windows 95-themed conversion dashboard using any of the following:</p>
+                        <ul>
+                            <li><strong>Windows Batch File</strong>: Double-click <code>run_app.bat</code> in the project root directory.</li>
+                            <li><strong>Python CLI</strong>: Run the following in your terminal:</li>
+                        </ul>
+                        <pre><code class="language-bash">python app/main.py</code></pre>
+
+                        <h3>3. Running the Image Viewer (Tkinter)</h3>
+                        <p>Open the standalone 90s-themed image viewer:</p>
+                        <ul>
+                            <li><strong>Windows Batch File</strong>: Double-click <code>run_viewer.bat</code> in the project root directory.</li>
+                            <li><strong>Python CLI</strong>: Run the following in your terminal:</li>
+                        </ul>
+                        <pre><code class="language-bash">python app/gui.py</code></pre>
+
+                        <h3>4. Interactive Jupyter Demo</h3>
+                        <p>Open the interactive notebook <code>demo.ipynb</code> in Jupyter to experiment:</p>
+                        <pre><code class="language-bash">jupyter notebook demo.ipynb</code></pre>
+                    </section>
+
+                    <!-- Features Page -->
+                    <section id="page-features" class="doc-page hidden">
+                        <h1>Features</h1>
+                        <ul>
+                            <li><strong>Custom Format Spec (`.oppsie`)</strong>: High-performance, simple byte-level encoding utilizing run-length encoding (RLE), color differences, luma differences, and a running palette of the last 64 seen pixels.</li>
+                            <li><strong>Lossless & Lossy Modes</strong>: Native support for 1-7 bit color quantization in the flags header to dramatically reduce file sizes.</li>
+                            <li><strong>EXIF Metadata Passthrough</strong>: Custom EXIF chunk injection at the tail of the pixel stream ensuring JPEG EXIF metadata is preserved.</li>
+                            <li><strong>GUI Converter App (PyQt5)</strong>: A feature-rich Windows 95-themed conversion dashboard with frameless rounded window, drag-and-drop queue, animated glowing progress bar, and hover-to-preview thumbnails.</li>
+                            <li><strong>Image Viewer App (Tkinter)</strong>: A standalone 90s-themed image viewer with classic 3D raised/sunken borders, zoom/pan, fit-to-window, and mouse wheel support. Opens `.oppsie`, PNG, JPEG, BMP, WebP, and GIF.</li>
+                            <li><strong>Batch Converter</strong>: Convert entire folders of PNG, JPEG, WebP, BMP, and GIF images to and from `.oppsie`.</li>
+                        </ul>
+                    </section>
+
+                    <!-- Usage Page -->
+                    <section id="page-usage" class="doc-page hidden">
+                        <h1>CLI Conversion Examples</h1>
+                        
+                        <h3>Convert to lossless</h3>
+                        <pre><code class="language-bash">python converter/to_oppsie.py my_photo.png output.oppsie</code></pre>
+                        
+                        <h3>Convert to lossy (quantization level 3)</h3>
+                        <pre><code class="language-bash">python converter/to_oppsie.py my_photo.jpg output.oppsie --lossy 3</code></pre>
+                        
+                        <h3>Convert back to PNG</h3>
+                        <pre><code class="language-bash">python converter/from_oppsie.py output.oppsie recovered.png</code></pre>
+                        
+                        <h3>Batch convert folder</h3>
+                        <pre><code class="language-bash">python converter/batch_runner.py ./my_images ./converted_opps oppsie</code></pre>
+                    </section>
+
+                    <!-- Benchmarks Page -->
+                    <section id="page-benchmarks" class="doc-page hidden">
+                        <h1>Benchmark Results</h1>
+                        <p>Running <code>python oppsie/benchmark.py</code> yields the following on 512x512 samples.</p>
+                        
+                        <h3>Flat Graphic (512x512, RGB)</h3>
+                        <p><em>Consists of solid blocks of color, text, and clean shapes.</em></p>
+                        <table>
+                            <thead><tr><th>Format</th><th>Size (KB)</th><th>Encode Time (ms)</th><th>Decode Time (ms)</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>OPPSIE (Lossless)</strong></td><td><strong>7.08 KB</strong></td><td><strong>170.60 ms</strong></td><td><strong>40.64 ms</strong></td></tr>
+                                <tr><td>OPPSIE (Lossy L3)</td><td>7.08 KB</td><td>182.65 ms</td><td>42.67 ms</td></tr>
+                                <tr><td>OPPSIE (Lossy L5)</td><td>9.49 KB</td><td>184.82 ms</td><td>40.81 ms</td></tr>
+                                <tr><td>PNG</td><td>2.81 KB</td><td>4.35 ms</td><td>0.14 ms</td></tr>
+                                <tr><td>JPEG (Q80)</td><td>12.62 KB</td><td>1.70 ms</td><td>0.12 ms</td></tr>
+                                <tr><td>WebP (Lossless)</td><td>0.61 KB</td><td>9.46 ms</td><td>0.37 ms</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Gradient Photo (512x512, RGB)</h3>
+                        <p><em>Smooth color ramps simulating photographic content.</em></p>
+                        <table>
+                            <thead><tr><th>Format</th><th>Size (KB)</th><th>Encode Time (ms)</th><th>Decode Time (ms)</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>OPPSIE (Lossless)</strong></td><td><strong>257.02 KB</strong></td><td><strong>441.09 ms</strong></td><td><strong>318.47 ms</strong></td></tr>
+                                <tr><td><strong>OPPSIE (Lossy L3)</strong></td><td><strong>116.37 KB</strong></td><td><strong>273.19 ms</strong></td><td><strong>79.72 ms</strong></td></tr>
+                                <tr><td><strong>OPPSIE (Lossy L5)</strong></td><td><strong>31.55 KB</strong></td><td><strong>200.87 ms</strong></td><td><strong>48.33 ms</strong></td></tr>
+                                <tr><td>PNG</td><td>7.17 KB</td><td>8.22 ms</td><td>0.12 ms</td></tr>
+                                <tr><td>JPEG (Q80)</td><td>10.40 KB</td><td>1.74 ms</td><td>0.11 ms</td></tr>
+                                <tr><td>WebP (Lossless)</td><td>3.60 KB</td><td>143.60 ms</td><td>0.30 ms</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Pixel Art (512x512, RGBA)</h3>
+                        <p><em>Small palette grid graphic with full transparency.</em></p>
+                        <table>
+                            <thead><tr><th>Format</th><th>Size (KB)</th><th>Encode Time (ms)</th><th>Decode Time (ms)</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>OPPSIE (Lossless)</strong></td><td><strong>16.03 KB</strong></td><td><strong>131.97 ms</strong></td><td><strong>50.49 ms</strong></td></tr>
+                                <tr><td>OPPSIE (Lossy L3)</td><td>16.04 KB</td><td>199.36 ms</td><td>52.62 ms</td></tr>
+                                <tr><td>OPPSIE (Lossy L5)</td><td>26.10 KB</td><td>199.11 ms</td><td>53.09 ms</td></tr>
+                                <tr><td>PNG</td><td>2.59 KB</td><td>3.92 ms</td><td>0.11 ms</td></tr>
+                                <tr><td>WebP (Lossless)</td><td>0.18 KB</td><td>16.18 ms</td><td>0.28 ms</td></tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <!-- Analysis Page -->
+                    <section id="page-analysis" class="doc-page hidden">
+                        <h1>Codec Analysis</h1>
+                        <h3>1. Python vs Native Timings</h3>
+                        <p>PNG, JPEG, and WebP encode/decode times in our benchmark are exceptionally fast because they call compiled C libraries (libpng, libjpeg, libwebp) wrapped inside Pillow. Our reference <code>.oppsie</code> codec is written in pure Python, making its performance (100–400 ms) very impressive for a byte-level loop.</p>
+                        
+                        <h3>2. Quantization Behavior</h3>
+                        <ul>
+                            <li><strong>For Photographs/Gradients:</strong> Quantization (<code>flags > 0</code>) works wonders, reducing size from 257.02 KB down to 31.55 KB (an 87.7% reduction).</li>
+                            <li><strong>For Pixel Art/Flat Graphics:</strong> Applying heavy quantization (e.g. L5) can actually <em>increase</em> file size. This occurs because quantization creates large steps in color value. When adjacent colors shift from one quantized bin to another, the differences exceed the threshold of <code>OPPS_DIFF</code> ([-2, 1]) and <code>OPPS_LUMA</code> ([-32, 31]), forcing the encoder to emit raw <code>OPPS_RGB</code> chunks (4 bytes) instead of compact 1 or 2-byte difference chunks.</li>
+                        </ul>
+                    </section>
+
+                    <!-- Structure Page -->
+                    <section id="page-structure" class="doc-page hidden">
+                        <h1>Repository Structure</h1>
+                        <pre><code class="language-bash">├── oppsie/               # Codec Library
+│   ├── __init__.py       # Package entry exposing encode() and decode()
+│   ├── encoder.py        # Raw pixels -> .oppsie byte stream
+│   ├── decoder.py        # .oppsie byte stream -> PIL Image
+│   ├── benchmark.py      # Format performance comparison tool
+│   └── OPPSIE_SPEC.md    # Byte-level format specification
+├── converter/            # Format Converter Engine
+│   ├── __init__.py       # Converter entry
+│   ├── to_oppsie.py      # CLI for converting images to .oppsie
+│   ├── from_oppsie.py    # CLI for converting .oppsie to standard formats
+│   └── batch_runner.py   # CLI for batch converting directories
+├── app/                  # Desktop GUI Applications
+│   ├── __init__.py       
+│   ├── main.py           # PyQt5 Windows 95-themed Converter dashboard
+│   ├── gui.py            # Tkinter 90s-themed standalone Image Viewer
+│   ├── guibackup.py      # Backup of previous Tkinter viewer (modern dark theme)
+│   └── mainbackup.py     # Backup of previous PyQt5 app (Catppuccin theme)
+├── files/                # File uploads & exports
+│   ├── uploads/          # Source images and .oppsie files
+│   └── exports/          # Converted output files
+├── tests/                # Test Suite
+│   ├── test_codec.py     # Roundtrip and lossy correctness unit tests
+│   ├── test_converter.py # Format conversion and batch unit tests
+│   ├── test_gui_loader.py# GUI loading test
+│   └── test_preview_widget.py # Preview widget test
+├── run_app.bat           # Launch the converter app without commands
+├── run_viewer.bat        # Launch the image viewer without commands
+├── README.md             # Project overview and guide
+├── requirements.txt      # Dependency listing
+└── LICENSE               # License file</code></pre>
+                    </section>
+
+                    <!-- Testing Page -->
+                    <section id="page-testing" class="doc-page hidden">
+                        <h1>Testing</h1>
+                        <p>Run unit tests covering roundtrip verification, transparency correctness, and CLI conversions:</p>
+                        <pre><code class="language-bash">python -m unittest discover tests/</code></pre>
+                        <div class="not-prose mt-8 p-4 border border-dashed border-gray-300 dark:border-zinc-700 rounded-lg text-center">
+                            <p class="text-sm text-text-muted-l dark:text-text-muted-d m-0">This is only a joke that I built to impress my best friend so you know :3</p>
+                        </div>
+                    </section>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Mobile menu toggle
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+        });
+
+        // Page Switching Logic
+        const navLinks = document.querySelectorAll('.nav-link');
+        const pages = document.querySelectorAll('.doc-page');
+        
+        function showPage(pageId, event) {
+            pages.forEach(page => {
+                page.classList.add('hidden');
+            });
+            document.getElementById(`page-${pageId}`).classList.remove('hidden');
+            
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // Close mobile menu on click
+            if (window.innerWidth < 768) {
+                sidebar.classList.add('-translate-x-full');
+            }
+            
+            // Highlight code blocks
+            hljs.highlightAll();
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+
+        // Theme Toggle Logic
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        const iconDark = document.getElementById('theme-icon-dark');
+        const iconLight = document.getElementById('theme-icon-light');
+
+        function updateThemeIcons() {
+            if (html.classList.contains('dark')) {
+                iconDark.classList.remove('hidden');
+                iconLight.classList.add('hidden');
+            } else {
+                iconDark.classList.add('hidden');
+                iconLight.classList.remove('hidden');
+            }
+        }
+
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            if (html.classList.contains('dark')) {
+                localStorage.setItem('theme', 'dark');
+            } else {
+                localStorage.setItem('theme', 'light');
+            }
+            updateThemeIcons();
+        });
+
+        // Init
+        updateThemeIcons();
+        hljs.highlightAll();
+    </script>
+</body>
+</html>

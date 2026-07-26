@@ -1,6 +1,6 @@
 # .oppsie Image Format & Converter App
 
-A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI - Quite OK Image Format), complete with a reference Python codec, batch format converter, and a mouse-clickable retro TUI (Terminal User Interface) dashboard built with Textual.
+A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI - Quite OK Image Format), complete with a reference Python codec, batch format converter, and a pair of retro-styled desktop applications.
 
 ---
 
@@ -9,12 +9,17 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 - **Custom Format Spec (`.oppsie`)**: High-performance, simple byte-level encoding utilizing run-length encoding (RLE), color differences, luma differences, and a running palette of the last 64 seen pixels.
 - **Lossless & Lossy Modes**: Native support for 1-7 bit color quantization in the flags header to dramatically reduce file sizes on photographs and gradients.
 - **EXIF Metadata Passthrough**: Custom EXIF chunk injection at the tail of the pixel stream ensuring JPEG EXIF metadata is preserved in round-trip conversions.
-- **GUI Dashboard**: A premium, mouse-clickable retro-styled console interface featuring:
-  - Sound-free terminal boot animation on launch.
-  - Interactive file browser.
-  - Side-by-side previews with real-time.
-  - Controls for target format selection, lossy quantization depth, and conversion runs.
-  - Responsive layout (supports mouse-click controls and keyboard shortcuts like `o` for open, `c` for convert, `q` for quit).
+- **GUI Converter App (PyQt5)**: A feature-rich Windows 95-themed conversion dashboard with:
+  - Frameless rounded window with custom title bar.
+  - Drag-and-drop file queue with per-file format targeting.
+  - Animated glowing progress bar and status indicator.
+  - Controls for output format selection, compression level (lossless / 1–7), overwrite mode, and output folder.
+  - Hover-to-preview thumbnails and keyboard shortcuts (`Ctrl+O`, `Ctrl+Enter`, `Delete`, `Esc`, `F1`).
+- **Image Viewer App (Tkinter)**: A standalone 90s-themed image viewer with:
+  - Classic Windows 95-style 3D raised/sunken borders.
+  - Zoom, pan (click-and-drag), fit-to-window, and reset controls.
+  - Mouse wheel zoom support.
+  - Opens `.oppsie`, PNG, JPEG, BMP, WebP, and GIF files.
 - **Batch Converter**: Convert entire folders of PNG, JPEG, WebP, BMP, and GIF images to and from `.oppsie`.
 
 ---
@@ -33,16 +38,25 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 │   ├── to_oppsie.py      # CLI for converting images to .oppsie
 │   ├── from_oppsie.py    # CLI for converting .oppsie to standard formats
 │   └── batch_runner.py   # CLI for batch converting directories
-├── app/                  # Desktop GUI Application
+├── app/                  # Desktop GUI Applications
 │   ├── __init__.py       
-│   └── main.py           # Textual TUI Dashboard app
+│   ├── main.py           # PyQt5 Windows 95-themed Converter dashboard
+│   ├── gui.py            # Tkinter 90s-themed standalone Image Viewer
+│   ├── guibackup.py      # Backup of previous Tkinter viewer (modern dark theme)
+│   └── mainbackup.py     # Backup of previous PyQt5 app (Catppuccin theme)
+├── files/                # File uploads & exports
+│   ├── uploads/          # Source images and .oppsie files
+│   └── exports/          # Converted output files
 ├── tests/                # Test Suite
 │   ├── test_codec.py     # Roundtrip and lossy correctness unit tests
-│   └── test_converter.py # Format conversion and batch unit tests
-├── run_app.batch         # Run the convertor without using commands
-├── run_viewer.batch      # Run the image viewer without using commands
+│   ├── test_converter.py # Format conversion and batch unit tests
+│   ├── test_gui_loader.py# GUI loading test
+│   └── test_preview_widget.py # Preview widget test
+├── run_app.bat           # Launch the converter app without commands
+├── run_viewer.bat        # Launch the image viewer without commands
 ├── README.md             # Project overview and guide
-└── requirements.txt      # Dependency listing
+├── requirements.txt      # Dependency listing
+└── LICENSE               # License file
 ```
 
 ---
@@ -51,15 +65,15 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 
 ### 1. Installation
 
-Install dependencies (Pillow, Textual, and Rich):
+Install dependencies (Pillow, PyQt5):
 
 ```bash
-pip install pillow textual rich
+pip install requirements.txt
 ```
 
-### 2. Running the GUI App
+### 2. Running the Converter GUI App (PyQt5)
 
-You can launch the retro terminal dashboard using any of the following:
+You can launch the Windows 95-themed conversion dashboard using any of the following:
 
 - **Windows Batch File**: Double-click [run_app.bat](file:///C:/projects/Image%20format/run_app.bat) in the project root directory.
 - **Python CLI**: Run the following in your terminal:
@@ -67,14 +81,24 @@ You can launch the retro terminal dashboard using any of the following:
   python app/main.py
   ```
 
-### 3. Interactive Jupyter Demo
+### 3. Running the Image Viewer (Tkinter)
+
+Open the standalone 90s-themed image viewer:
+
+- **Windows Batch File**: Double-click [run_viewer.bat](file:///C:/projects/Image%20format/run_viewer.bat) in the project root directory.
+- **Python CLI**: Run the following in your terminal:
+  ```bash
+  python app/gui.py
+  ```
+
+### 4. Interactive Jupyter Demo
 
 Open the interactive notebook [demo.ipynb](file:///C:/projects/Image%20format/demo.ipynb) in Jupyter to experiment with the code step-by-step:
 ```bash
 jupyter notebook demo.ipynb
 ```
 
-### 4. CLI Conversion Examples
+### 5. CLI Conversion Examples
 
 
 **Convert an image to lossless `.oppsie`:**
