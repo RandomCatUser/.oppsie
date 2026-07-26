@@ -17,32 +17,21 @@ from converter.to_oppsie import convert_to_oppsie
 from converter.from_oppsie import convert_from_oppsie
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  DESIGN TOKENS  (Catppuccin Mocha)
+#  DESIGN TOKENS  (Windows 95 / 90s UI Retro Theme)
 # ═══════════════════════════════════════════════════════════════════════════
 C = {
-    "base": "#1e1e2e",
-    "mantle": "#181825",
-    "crust": "#11111b",
-    "surface0": "#313244",
-    "surface1": "#45475a",
-    "surface2": "#585b70",
-    "overlay0": "#6c7086",
-    "overlay1": "#7f849c",
-    "overlay2": "#a6adc8",
-    "text": "#cdd6f4",
-    "subtext0": "#a6adc8",
-    "subtext1": "#bac2de",
-    "mauve": "#cba6f7",
-    "pink": "#f5c2e7",
-    "lavender": "#b4befe",
-    "blue": "#89b4fa",
-    "sapphire": "#74c7ec",
-    "green": "#a6e3a1",
-    "yellow": "#f9e2af",
-    "red": "#f38ba8",
-    "peach": "#fab387",
-    "teal": "#94e2d5",
-    "rosewater": "#f5e0dc",
+    "window": "#C0C0C0",      # Classic Gray
+    "dark": "#808080",        # Border Dark
+    "darker": "#000000",      # Absolute Black Border
+    "light": "#FFFFFF",       # Border Light
+    "text": "#000000",        # Black Text
+    "active_title": "#000080",# Navy Blue Title Bar
+    "active_title_text": "#FFFFFF",
+    "select": "#000080",      # Selection Navy
+    "select_text": "#FFFFFF",
+    "face": "#C0C0C0",
+    "shadow": "#808080",
+    "highlight": "#FFFFFF",
 }
 
 FORMATS = ["oppsie", "png", "jpeg", "webp", "bmp"]
@@ -67,25 +56,7 @@ def human_size(n):
     return f"{n:.1f} TB"
 
 
-def round_pixmap(src, size, radius):
-    scaled = src.scaled(
-        size, size,
-        QtCore.Qt.KeepAspectRatioByExpanding,
-        QtCore.Qt.SmoothTransformation
-    )
-    out = QtGui.QPixmap(size, size)
-    out.fill(QtCore.Qt.transparent)
-    p = QtGui.QPainter(out)
-    p.setRenderHint(QtGui.QPainter.Antialiasing)
-    clip = QtGui.QPainterPath()
-    clip.addRoundedRect(0, 0, size, size, radius, radius)
-    p.setClipPath(clip)
-    p.drawPixmap(0, 0, scaled)
-    p.end()
-    return out
-
-
-def make_thumbnail(path, size=44):
+def make_thumbnail(path, size=32):
     try:
         img = load_image(path)
         thumb = img.copy()
@@ -99,7 +70,7 @@ def make_thumbnail(path, size=44):
             data, thumb.width, thumb.height,
             3 * thumb.width, QtGui.QImage.Format_RGB888
         )
-        return round_pixmap(QtGui.QPixmap.fromImage(qi), size, 8)
+        return QtGui.QPixmap.fromImage(qi)
     except Exception:
         return None
 
@@ -124,7 +95,7 @@ def make_large_thumbnail(path, size=200):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  CONVERSION WORKER  (with cancellation)
+#  CONVERSION WORKER
 # ═══════════════════════════════════════════════════════════════════════════
 class ConversionWorker(QtCore.QThread):
     progress = QtCore.pyqtSignal(int)
@@ -177,68 +148,50 @@ class ConversionWorker(QtCore.QThread):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  STATUS DOT  (pulsing glow)
+#  90s STATUS LED
 # ═══════════════════════════════════════════════════════════════════════════
-class StatusDot(QtWidgets.QWidget):
+class StatusLED(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(12, 12)
-        self._color = QtGui.QColor(C["green"])
-        self._phase = 0.0
-        self._active = True
-        self._timer = QtCore.QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self._timer.start(40)
+        self.setFixedSize(16, 16)
+        self._color = QtGui.QColor("#00FF00") # Classic matrix green
+        self.update()
 
     def setColor(self, name):
-        self._color = QtGui.QColor(C.get(name, name))
+        if name == "green": self._color = QtGui.QColor("#00FF00")
+        elif name == "yellow": self._color = QtGui.QColor("#FFFF00")
+        elif name == "red": self._color = QtGui.QColor("#FF0000")
+        elif name == "peach": self._color = QtGui.QColor("#FF8000")
         self.update()
-
-    def setActive(self, on):
-        self._active = on
-        if not on:
-            self._phase = 0
-        self.update()
-
-    def _tick(self):
-        if self._active:
-            self._phase = (self._phase + 0.12) % (2 * math.pi)
-            self.update()
 
     def paintEvent(self, _):
         p = QtGui.QPainter(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
-        alpha = int(20 + 18 * math.sin(self._phase)) if self._active else 10
-        glow = QtGui.QColor(self._color)
-        glow.setAlpha(max(0, alpha))
-        p.setPen(QtCore.Qt.NoPen)
-
-        # Outer glow
-        p.setBrush(glow)
-        rect = self.rect().adjusted(-4, -4, 4, 4)
-        p.drawEllipse(rect)
-
-        # Core
-        p.setBrush(self._color)
-        p.drawEllipse(self.rect())
-        p.end()
+        p.setRenderHint(QtGui.QPainter.Antialiasing, False)
+        r = self.rect()
+        
+        p.setPen(QtGui.QPen(QtGui.QColor(C["darker"]), 1))
+        p.drawRect(r.x(), r.y(), r.width()-1, r.height()-1)
+        p.setPen(QtGui.QPen(QtGui.QColor(C["dark"]), 1))
+        p.drawLine(r.x()+1, r.y()+1, r.right()-1, r.y()+1)
+        p.drawLine(r.x()+1, r.y()+1, r.x()+1, r.bottom()-1)
+        p.setPen(QtGui.QPen(QtGui.QColor(C["light"]), 1))
+        p.drawLine(r.right()-1, r.y()+1, r.right()-1, r.bottom()-1)
+        p.drawLine(r.x()+1, r.bottom()-1, r.right()-1, r.bottom()-1)
+        
+        inner = r.adjusted(3, 3, -3, -3)
+        p.fillRect(inner, QtGui.QBrush(self._color))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  GLOW PROGRESS BAR  (thin, animated with shimmer)
+#  WINDOWS 95 PROGRESS BAR
 # ═══════════════════════════════════════════════════════════════════════════
-class GlowBar(QtWidgets.QWidget):
+class Win95ProgressBar(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._value = 0
-        self.setFixedHeight(8)
-        self._anim = QtCore.QPropertyAnimation(self, b"value")
-        self._anim.setDuration(350)
-        self._anim.setEasingCurve(QtCore.QEasingCurve.OutCubic)
+        self.setFixedHeight(20)
 
-    def _get_value(self):
-        return self._value
-
+    def _get_value(self): return self._value
     def _set_value(self, v):
         self._value = max(0, min(100, v))
         self.update()
@@ -246,53 +199,41 @@ class GlowBar(QtWidgets.QWidget):
     value = QtCore.pyqtProperty(int, _get_value, _set_value)
 
     def animateTo(self, v):
-        self._anim.stop()
-        self._anim.setStartValue(self._value)
-        self._anim.setEndValue(max(0, min(100, v)))
-        self._anim.start()
+        self._value = max(0, min(100, v))
+        self.update()
 
     def reset(self):
-        self._anim.stop()
         self._value = 0
         self.update()
 
     def paintEvent(self, _):
-        if self._value <= 0:
-            return
-
         p = QtGui.QPainter(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
-        rect = self.rect()
-        radius = rect.height() / 2
-        fill_width = max(radius * 2, rect.width() * self._value / 100)
-        fill_rect = QtCore.QRectF(rect.x(), rect.y(), fill_width, rect.height())
+        p.setRenderHint(QtGui.QPainter.Antialiasing, False)
+        r = self.rect()
 
-        # Background glow
-        glow = QtGui.QColor(C["mauve"])
-        glow.setAlpha(25)
-        p.setPen(QtCore.Qt.NoPen)
-        p.setBrush(glow)
-        p.drawRoundedRect(fill_rect.adjusted(-2, -3, 2, 3), radius + 2, radius + 2)
+        p.setPen(QtGui.QPen(QtGui.QColor(C["darker"]), 1))
+        p.drawRect(r.x(), r.y(), r.width()-1, r.height()-1)
+        p.setPen(QtGui.QPen(QtGui.QColor(C["dark"]), 1))
+        p.drawLine(r.x()+1, r.y()+1, r.right()-1, r.y()+1)
+        p.drawLine(r.x()+1, r.y()+1, r.x()+1, r.bottom()-1)
+        p.setPen(QtGui.QPen(QtGui.QColor(C["light"]), 1))
+        p.drawLine(r.right()-1, r.y()+1, r.right()-1, r.bottom()-1)
+        p.drawLine(r.x()+1, r.bottom()-1, r.right()-1, r.bottom()-1)
 
-        # Gradient fill
-        grad = QtGui.QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
-        grad.setColorAt(0, QtGui.QColor(C["mauve"]))
-        grad.setColorAt(1, QtGui.QColor(C["pink"]))
-        p.setBrush(grad)
-        p.drawRoundedRect(fill_rect, radius, radius)
-
-        # Shimmer highlight
-        shimmer = QtGui.QLinearGradient(0, rect.y(), 0, rect.center().y())
-        shimmer.setColorAt(0, QtGui.QColor(255, 255, 255, 50))
-        shimmer.setColorAt(1, QtGui.QColor(255, 255, 255, 0))
-        p.setBrush(shimmer)
-        p.drawRoundedRect(fill_rect, radius, radius)
-
-        p.end()
+        inner_rect = r.adjusted(3, 3, -3, -3)
+        if self._value > 0:
+            fill_width = int(inner_rect.width() * self._value / 100)
+            block_w = 7
+            x = inner_rect.x()
+            p.setBrush(QtGui.QBrush(QtGui.QColor(C["active_title"])))
+            p.setPen(QtCore.Qt.NoPen)
+            while x < inner_rect.x() + fill_width:
+                p.drawRect(x, inner_rect.y(), min(block_w, inner_rect.x() + fill_width - x), inner_rect.height())
+                x += block_w + 2
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  FILE ITEM  (with selection and hover preview)
+#  FILE ITEM
 # ═══════════════════════════════════════════════════════════════════════════
 class FileItem(QtWidgets.QFrame):
     removeRequested = QtCore.pyqtSignal(object)
@@ -310,85 +251,81 @@ class FileItem(QtWidgets.QFrame):
         self._hover_timer.timeout.connect(self._show_preview)
         self.setAcceptDrops(False)
         self._build()
-        self._apply_shadow()
-
-    def _apply_shadow(self):
-        shadow = QtWidgets.QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setColor(QtGui.QColor(0, 0, 0, 80))
-        shadow.setOffset(0, 3)
-        self.setGraphicsEffect(shadow)
 
     def _build(self):
-        self.setFixedHeight(64)
+        self.setFixedHeight(48)
+        self.setMinimumWidth(400) # Ensure items require enough width to trigger horizontal scrollbar
         self.setObjectName("fileItem")
         lay = QtWidgets.QHBoxLayout(self)
-        lay.setContentsMargins(12, 8, 12, 8)
-        lay.setSpacing(10)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(8)
 
-        # Thumbnail (clickable for preview)
+        self._check = QtWidgets.QCheckBox()
+        self._check.setChecked(True)
+        self._check.setObjectName("fileCheck")
+        self._check.setFixedSize(16, 16)
+        lay.addWidget(self._check)
+
         self._thumb_label = QtWidgets.QLabel()
-        self._thumb_label.setFixedSize(44, 44)
+        self._thumb_label.setFixedSize(32, 32)
         self._thumb_label.setAlignment(QtCore.Qt.AlignCenter)
         self._thumb_label.setObjectName("thumbLabel")
-        pm = make_thumbnail(self.path, 44)
+        pm = make_thumbnail(self.path, 32)
         if pm:
             self._thumb_label.setPixmap(pm)
         else:
             self._thumb_label.setText("📄")
-            self._thumb_label.setStyleSheet("font-size:20px;")
+            self._thumb_label.setStyleSheet("font-size:16px;")
         lay.addWidget(self._thumb_label)
 
-        # File info
-        info = QtWidgets.QVBoxLayout()
-        info.setSpacing(1)
         name = QtWidgets.QLabel(self.path.name)
         name.setObjectName("fileName")
-        lay.addLayout(info, 1)
-        info.addWidget(name)
-        try:
-            size = QtWidgets.QLabel(human_size(self.path.stat().st_size))
-        except OSError:
-            size = QtWidgets.QLabel("—")
-        size.setObjectName("fileSize")
-        info.addWidget(size)
+        lay.addWidget(name, 1)
 
-        # Arrow
-        arrow = QtWidgets.QLabel("→")
+        try:
+            size_str = human_size(self.path.stat().st_size)
+        except OSError:
+            size_str = "—"
+        size = QtWidgets.QLabel(size_str)
+        size.setObjectName("fileSize")
+        size.setFixedWidth(70)
+        size.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        lay.addWidget(size)
+
+        arrow = QtWidgets.QLabel("->")
         arrow.setObjectName("arrow")
         arrow.setAlignment(QtCore.Qt.AlignCenter)
+        arrow.setFixedWidth(20)
         lay.addWidget(arrow)
 
-        # Format combo
         self._fmt = QtWidgets.QComboBox()
         self._fmt.addItems(FORMATS)
         self._fmt.setCurrentText("oppsie")
         self._fmt.setObjectName("fmtCombo")
-        self._fmt.setFixedWidth(105)
-        self._fmt.currentTextChanged.connect(
-            lambda t: setattr(self, "target_fmt", t)
-        )
+        self._fmt.setFixedWidth(90)
+        self._fmt.currentTextChanged.connect(lambda t: setattr(self, "target_fmt", t))
         lay.addWidget(self._fmt)
 
-        # Status icon
         self._status_label = QtWidgets.QLabel()
-        self._status_label.setFixedSize(24, 24)
+        self._status_label.setFixedSize(20, 20)
         self._status_label.setAlignment(QtCore.Qt.AlignCenter)
         lay.addWidget(self._status_label)
 
-        # Remove button
-        self._remove_btn = QtWidgets.QPushButton("✕")
+        self._remove_btn = QtWidgets.QPushButton("X")
         self._remove_btn.setObjectName("removeBtn")
-        self._remove_btn.setFixedSize(28, 28)
+        self._remove_btn.setFixedSize(24, 24)
         self._remove_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self._remove_btn.clicked.connect(
-            lambda: self.removeRequested.emit(self)
-        )
+        self._remove_btn.clicked.connect(lambda: self.removeRequested.emit(self))
         lay.addWidget(self._remove_btn)
 
-        # Install event filter for hover preview
         self._thumb_label.installEventFilter(self)
         self.installEventFilter(self)
+
+    def isChecked(self):
+        return self._check.isChecked()
+
+    def setChecked(self, v):
+        self._check.setChecked(v)
 
     def eventFilter(self, obj, event):
         if obj == self._thumb_label or obj == self:
@@ -400,29 +337,18 @@ class FileItem(QtWidgets.QFrame):
         return super().eventFilter(obj, event)
 
     def _show_preview(self):
-        if self._preview_window is not None:
-            return
+        if self._preview_window is not None: return
         pm = make_large_thumbnail(self.path, 200)
-        if pm is None:
-            return
-        # Create a popup window
+        if pm is None: return
         self._preview_window = QtWidgets.QFrame()
         self._preview_window.setWindowFlags(QtCore.Qt.Popup)
         self._preview_window.setObjectName("previewWindow")
         layout = QtWidgets.QVBoxLayout(self._preview_window)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setContentsMargins(2, 2, 2, 2)
         label = QtWidgets.QLabel()
         label.setPixmap(pm)
         label.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(label)
-        self._preview_window.setStyleSheet(f"""
-            QFrame#previewWindow {{
-                background: {C['crust']};
-                border: 1px solid {C['surface0']};
-                border-radius: 8px;
-            }}
-        """)
-        # Position near the thumbnail
         pos = self._thumb_label.mapToGlobal(QtCore.QPoint(0, 0))
         self._preview_window.move(pos.x() - 20, pos.y() - pm.height() - 10)
         self._preview_window.show()
@@ -449,20 +375,20 @@ class FileItem(QtWidgets.QFrame):
         self.style().polish(self)
 
     def setConverting(self):
-        self._status_label.setText("⟳")
-        self._status_label.setStyleSheet(f"color:{C['yellow']};font-size:16px;")
+        self._status_label.setText("...")
+        self._status_label.setStyleSheet(f"color:{C['text']};font-size:12px;font-weight:bold;")
         self._fmt.setEnabled(False)
         self._remove_btn.setEnabled(False)
         self._set_state("converting")
 
     def setDone(self):
-        self._status_label.setText("✓")
-        self._status_label.setStyleSheet(f"color:{C['green']};font-size:16px;font-weight:bold;")
+        self._status_label.setText("OK")
+        self._status_label.setStyleSheet(f"color:{C['text']};font-size:12px;font-weight:bold;")
         self._set_state("done")
 
     def setError(self):
-        self._status_label.setText("✕")
-        self._status_label.setStyleSheet(f"color:{C['red']};font-size:16px;font-weight:bold;")
+        self._status_label.setText("!")
+        self._status_label.setStyleSheet(f"color:{C['text']};font-size:14px;font-weight:bold;")
         self._set_state("error")
 
     def reset(self):
@@ -474,7 +400,6 @@ class FileItem(QtWidgets.QFrame):
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
-            # Select this item, deselect others in the queue
             parent = self.parent()
             while parent and not isinstance(parent, FileQueue):
                 parent = parent.parent()
@@ -484,7 +409,7 @@ class FileItem(QtWidgets.QFrame):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  FILE QUEUE  (drop zone + scrollable list, with selection support)
+#  FILE QUEUE
 # ═══════════════════════════════════════════════════════════════════════════
 class FileQueue(QtWidgets.QWidget):
     changed = QtCore.pyqtSignal()
@@ -494,16 +419,7 @@ class FileQueue(QtWidgets.QWidget):
         self._items: List[FileItem] = []
         self._selected_item: Optional[FileItem] = None
         self.setAcceptDrops(True)
-        self._dash_offset = 0
-        self._anim_timer = QtCore.QTimer(self)
-        self._anim_timer.timeout.connect(self._tick)
-        self._anim_timer.start(45)
         self._build()
-
-    def _tick(self):
-        if not self._items:
-            self._dash_offset = (self._dash_offset + 1) % 24
-            self.update()
 
     def _build(self):
         lay = QtWidgets.QVBoxLayout(self)
@@ -514,68 +430,39 @@ class FileQueue(QtWidgets.QWidget):
         self._stack.setObjectName("stack")
         lay.addWidget(self._stack)
 
-        # Empty drop zone
         dz = QtWidgets.QWidget()
         dz.setObjectName("dropZone")
         dl = QtWidgets.QVBoxLayout(dz)
         dl.setAlignment(QtCore.Qt.AlignCenter)
-        dl.setSpacing(12)
+        dl.setSpacing(6)
 
-        cloud = QtWidgets.QLabel()
-        cloud.setPixmap(self._cloud(72, 72))
-        cloud.setAlignment(QtCore.Qt.AlignCenter)
-        dl.addWidget(cloud)
-
-        title = QtWidgets.QLabel("Drop your files here")
+        title = QtWidgets.QLabel("Drop files here to add")
         title.setObjectName("dzTitle")
         title.setAlignment(QtCore.Qt.AlignCenter)
         dl.addWidget(title)
 
-        sub = QtWidgets.QLabel("PNG · JPG · WEBP · BMP · OPPSIE")
+        sub = QtWidgets.QLabel("Supported: PNG, JPG, WEBP, BMP, OPPSIE")
         sub.setObjectName("dzSub")
         sub.setAlignment(QtCore.Qt.AlignCenter)
         dl.addWidget(sub)
 
         self._stack.addWidget(dz)
 
-        # File list scroll area
         self._scroll = QtWidgets.QScrollArea()
         self._scroll.setWidgetResizable(True)
-        self._scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        # Enable both vertical and horizontal scrollbars as needed
+        self._scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self._scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self._scroll.setObjectName("fileScroll")
         self._scroll.viewport().setAcceptDrops(False)
 
         self._list_widget = QtWidgets.QWidget()
         self._list_layout = QtWidgets.QVBoxLayout(self._list_widget)
-        self._list_layout.setContentsMargins(8, 8, 8, 8)
-        self._list_layout.setSpacing(8)
+        self._list_layout.setContentsMargins(2, 2, 2, 2)
+        self._list_layout.setSpacing(2)
         self._list_layout.addStretch()
         self._scroll.setWidget(self._list_widget)
         self._stack.addWidget(self._scroll)
-
-    def paintEvent(self, event):
-        if self._items:
-            return
-        p = QtGui.QPainter(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
-        r = self.rect().adjusted(1, 1, -1, -1)
-
-        # Background with glass effect
-        bg = QtGui.QColor(C["mantle"])
-        bg.setAlpha(220)
-        p.setBrush(bg)
-        p.setPen(QtCore.Qt.NoPen)
-        p.drawRoundedRect(r, 16, 16)
-
-        # Dashed border
-        pen = QtGui.QPen(QtGui.QColor(C["surface1"]), 2)
-        pen.setStyle(QtCore.Qt.DashLine)
-        pen.setDashPattern([6, 4])
-        pen.setDashOffset(self._dash_offset)
-        p.setPen(pen)
-        p.setBrush(QtCore.Qt.NoBrush)
-        p.drawRoundedRect(r, 16, 16)
-        p.end()
 
     def selectItem(self, item):
         if self._selected_item:
@@ -601,7 +488,6 @@ class FileQueue(QtWidgets.QWidget):
 
     def _on_item_selected(self, selected):
         if selected:
-            # Deselect others
             for it in self._items:
                 if it is not self.sender():
                     it.setSelected(False)
@@ -630,13 +516,14 @@ class FileQueue(QtWidgets.QWidget):
     def items(self) -> List[FileItem]:
         return list(self._items)
 
+    def checkedItems(self) -> List[FileItem]:
+        return [it for it in self._items if it.isChecked()]
+
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls():
-            e.acceptProposedAction()
+        if e.mimeData().hasUrls(): e.acceptProposedAction()
 
     def dragMoveEvent(self, e):
-        if e.mimeData().hasUrls():
-            e.acceptProposedAction()
+        if e.mimeData().hasUrls(): e.acceptProposedAction()
 
     def dropEvent(self, e):
         for url in e.mimeData().urls():
@@ -644,31 +531,6 @@ class FileQueue(QtWidgets.QWidget):
             if p.is_file():
                 self.addFile(p)
         e.acceptProposedAction()
-
-    @staticmethod
-    def _cloud(w, h):
-        pm = QtGui.QPixmap(w, h)
-        pm.fill(QtCore.Qt.transparent)
-        p = QtGui.QPainter(pm)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
-
-        grad = QtGui.QLinearGradient(0, 0, 0, h)
-        grad.setColorAt(0, QtGui.QColor(C["pink"]))
-        grad.setColorAt(1, QtGui.QColor(C["mauve"]))
-        p.setBrush(QtGui.QBrush(grad))
-        p.setPen(QtCore.Qt.NoPen)
-
-        cx, cy = w / 2, h / 2
-        p.drawEllipse(QtCore.QRectF(cx - 20, cy - 14, 26, 26))
-        p.drawEllipse(QtCore.QRectF(cx - 8, cy - 24, 28, 28))
-        p.drawEllipse(QtCore.QRectF(cx + 8, cy - 14, 26, 26))
-        p.drawRoundedRect(QtCore.QRectF(cx - 20, cy - 4, 44, 18), 8, 8)
-
-        # Highlight
-        p.setBrush(QtGui.QColor(255, 255, 255, 30))
-        p.drawRoundedRect(QtCore.QRectF(cx - 12, cy - 18, 30, 12), 6, 6)
-        p.end()
-        return pm
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -681,15 +543,14 @@ class TitleBar(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(40)
+        self.setFixedHeight(26)
         self.setObjectName("titleBar")
 
         layout = QtWidgets.QHBoxLayout(self)
-        layout.setContentsMargins(14, 0, 10, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(2, 0, 0, 0)
+        layout.setSpacing(2)
 
-        # Icon and title
-        self.icon_label = QtWidgets.QLabel("⬡")
+        self.icon_label = QtWidgets.QLabel("ᓚ₍⑅^..^₎♡")
         self.icon_label.setObjectName("titleIcon")
         layout.addWidget(self.icon_label)
 
@@ -699,41 +560,40 @@ class TitleBar(QtWidgets.QWidget):
 
         layout.addStretch()
 
-        # Window controls
-        self.min_btn = QtWidgets.QPushButton("–")
-        self.min_btn.setObjectName("titleMinBtn")
-        self.min_btn.setFixedSize(32, 26)
+        self.min_btn = QtWidgets.QPushButton("_")
+        self.min_btn.setObjectName("titleBtn")
+        self.min_btn.setFixedSize(26, 22)
         self.min_btn.clicked.connect(self.minimizeClicked)
         layout.addWidget(self.min_btn)
 
         self.max_btn = QtWidgets.QPushButton("□")
-        self.max_btn.setObjectName("titleMaxBtn")
-        self.max_btn.setFixedSize(32, 26)
+        self.max_btn.setObjectName("titleBtn")
+        self.max_btn.setFixedSize(26, 22)
         self.max_btn.clicked.connect(self.maximizeClicked)
         layout.addWidget(self.max_btn)
 
-        self.close_btn = QtWidgets.QPushButton("✕")
-        self.close_btn.setObjectName("titleCloseBtn")
-        self.close_btn.setFixedSize(32, 26)
+        self.close_btn = QtWidgets.QPushButton("X")
+        self.close_btn.setObjectName("titleBtn")
+        self.close_btn.setFixedSize(26, 22)
         self.close_btn.clicked.connect(self.closeClicked)
         layout.addWidget(self.close_btn)
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
-            self.window().windowHandle().startSystemMove()
+            if self.window().windowHandle():
+                self.window().windowHandle().startSystemMove()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  MAIN WINDOW  (frameless with glass effect, shortcuts, output folder)
+#  MAIN WINDOW
 # ═══════════════════════════════════════════════════════════════════════════
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
-        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setWindowTitle("Oppsie Convert")
-        self.resize(980, 720)
-        self.setMinimumSize(820, 580)
+        self.resize(800, 580) # Default size
+        self.setMinimumSize(640, 480) # Allows much smaller resizing
 
         self._worker: Optional[ConversionWorker] = None
         self._converting = False
@@ -744,13 +604,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._setup_shortcuts()
 
     def _build(self):
-        # Central widget with rounded background and glass effect
         central = QtWidgets.QWidget()
         central.setObjectName("centralWidget")
         self.setCentralWidget(central)
 
         main_layout = QtWidgets.QVBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(3, 3, 3, 3)
         main_layout.setSpacing(0)
 
         # Title bar
@@ -760,170 +619,263 @@ class MainWindow(QtWidgets.QMainWindow):
         self.title_bar.maximizeClicked.connect(self._toggle_maximize)
         main_layout.addWidget(self.title_bar)
 
-        # Content area (with padding)
+        # Content
         content = QtWidgets.QWidget()
         content.setObjectName("content")
         content_layout = QtWidgets.QVBoxLayout(content)
-        content_layout.setContentsMargins(30, 20, 30, 22)
-        content_layout.setSpacing(18)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(10)
 
-        # ── Header ──────────────────────────────────────────
-        header = QtWidgets.QHBoxLayout()
-        brand = QtWidgets.QLabel("⬡  Oppsie Convert")
-        brand.setObjectName("brand")
-        header.addWidget(brand)
-        header.addStretch()
-        version = QtWidgets.QLabel("v1.3.0")
-        version.setObjectName("ver")
-        header.addWidget(version)
-        content_layout.addLayout(header)
+        # Two-panel split
+        split = QtWidgets.QHBoxLayout()
+        split.setSpacing(10)
 
-        # ── File queue ──────────────────────────────────────
+        # ─── Left panel: Files ─────────────────────────────
+        left_panel = QtWidgets.QVBoxLayout()
+        left_panel.setSpacing(5)
+
+        files_title = QtWidgets.QLabel("Files to Convert")
+        files_title.setObjectName("panelTitle")
+        left_panel.addWidget(files_title)
+
         self._queue = FileQueue()
-        self._queue.setMinimumHeight(280)
-        content_layout.addWidget(self._queue, 1)
+        left_panel.addWidget(self._queue, 1)
 
-        # ── Progress bar ────────────────────────────────────
-        self._bar = GlowBar()
-        self._bar.hide()
-        content_layout.addWidget(self._bar)
-
-        # ── Action bar (first row: Add, Clear, Output) ────
-        action_row1 = QtWidgets.QHBoxLayout()
-        action_row1.setSpacing(12)
-
-        self._add_btn = QtWidgets.QPushButton("+  Add Files")
-        self._add_btn.setObjectName("addBtn")
+        file_actions = QtWidgets.QHBoxLayout()
+        file_actions.setSpacing(5)
+        self._add_btn = QtWidgets.QPushButton("Add Files")
+        self._add_btn.setObjectName("btn")
         self._add_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self._add_btn.clicked.connect(self._browse)
-        action_row1.addWidget(self._add_btn)
+        file_actions.addWidget(self._add_btn)
 
-        self._clear_btn = QtWidgets.QPushButton("Clear All")
-        self._clear_btn.setObjectName("clearBtn")
+        self._select_all_btn = QtWidgets.QPushButton("Select All")
+        self._select_all_btn.setObjectName("btn")
+        self._select_all_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._select_all_btn.clicked.connect(self._select_all)
+        file_actions.addWidget(self._select_all_btn)
+
+        self._clear_btn = QtWidgets.QPushButton("Clear")
+        self._clear_btn.setObjectName("btn")
         self._clear_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self._clear_btn.clicked.connect(self._clear_queue)
-        action_row1.addWidget(self._clear_btn)
+        file_actions.addWidget(self._clear_btn)
 
-        action_row1.addStretch()
+        file_actions.addStretch()
+        left_panel.addLayout(file_actions)
 
-        # Output folder
-        out_label = QtWidgets.QLabel("Output:")
-        out_label.setObjectName("outLabel")
-        action_row1.addWidget(out_label)
+        left_wrap = QtWidgets.QWidget()
+        left_wrap.setLayout(left_panel)
+        split.addWidget(left_wrap, 3) # Left takes up 3/4 of horizontal space
+
+        # ─── Right panel: Settings ─────────────────────────
+        right_panel = QtWidgets.QVBoxLayout()
+        right_panel.setSpacing(10)
+
+        archive_group = QtWidgets.QGroupBox("Archive")
+        ag_layout = QtWidgets.QVBoxLayout(archive_group)
+        ag_layout.setSpacing(8)
+        ag_layout.setContentsMargins(8, 12, 8, 8)
+
+        fmt_row = QtWidgets.QHBoxLayout()
+        fmt_label = QtWidgets.QLabel("Output format:")
+        fmt_label.setObjectName("fieldLabel")
+        fmt_label.setFixedWidth(100)
+        fmt_row.addWidget(fmt_label)
+
+        self._global_fmt = QtWidgets.QComboBox()
+        self._global_fmt.addItems(FORMATS)
+        self._global_fmt.setCurrentText("oppsie")
+        self._global_fmt.setObjectName("settingCombo")
+        self._global_fmt.currentTextChanged.connect(self._apply_global_format)
+        fmt_row.addWidget(self._global_fmt, 1)
+        ag_layout.addLayout(fmt_row)
+
+        out_row = QtWidgets.QHBoxLayout()
+        out_label = QtWidgets.QLabel("Output folder:")
+        out_label.setObjectName("fieldLabel")
+        out_label.setFixedWidth(100)
+        out_row.addWidget(out_label)
 
         self._out_path = QtWidgets.QLineEdit()
         self._out_path.setReadOnly(True)
         self._out_path.setPlaceholderText("Same as source")
         self._out_path.setObjectName("outPath")
-        self._out_path.setFixedWidth(200)
-        action_row1.addWidget(self._out_path)
+        out_row.addWidget(self._out_path, 1)
 
-        self._out_btn = QtWidgets.QPushButton("Browse…")
-        self._out_btn.setObjectName("outBtn")
+        self._out_btn = QtWidgets.QPushButton("...")
+        self._out_btn.setObjectName("btn")
+        self._out_btn.setFixedSize(30, 22)
         self._out_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self._out_btn.clicked.connect(self._choose_output_folder)
-        action_row1.addWidget(self._out_btn)
+        out_row.addWidget(self._out_btn)
+        ag_layout.addLayout(out_row)
 
-        content_layout.addLayout(action_row1)
+        suf_row = QtWidgets.QHBoxLayout()
+        suf_label = QtWidgets.QLabel("Filename suffix:")
+        suf_label.setObjectName("fieldLabel")
+        suf_label.setFixedWidth(100)
+        suf_row.addWidget(suf_label)
 
-        # ── Action bar (second row: Quality, Convert, Cancel)
-        action_row2 = QtWidgets.QHBoxLayout()
-        action_row2.setSpacing(12)
+        self._suffix_edit = QtWidgets.QLineEdit("_converted")
+        self._suffix_edit.setObjectName("outPath")
+        suf_row.addWidget(self._suffix_edit, 1)
+        ag_layout.addLayout(suf_row)
 
-        q_label = QtWidgets.QLabel("Quality")
-        q_label.setObjectName("qualLabel")
-        action_row2.addWidget(q_label)
+        right_panel.addWidget(archive_group)
+
+        comp_group = QtWidgets.QGroupBox("Compression")
+        cg_layout = QtWidgets.QVBoxLayout(comp_group)
+        cg_layout.setSpacing(8)
+        cg_layout.setContentsMargins(8, 12, 8, 8)
+
+        q_row = QtWidgets.QHBoxLayout()
+        q_label = QtWidgets.QLabel("Compression level:")
+        q_label.setObjectName("fieldLabel")
+        q_label.setFixedWidth(100)
+        q_row.addWidget(q_label)
 
         self._quality = QtWidgets.QComboBox()
         self._quality.addItems([
-            "Lossless", "1 — Light", "2", "3 — Medium",
-            "4", "5", "6", "7 — Max"
+            "Lossless", "1 - Light", "2", "3 - Medium",
+            "4", "5", "6", "7 - Max"
         ])
-        self._quality.setObjectName("qualCombo")
-        self._quality.setFixedWidth(135)
-        self._quality.setToolTip(
-            "Higher values give better quality but larger files.\n"
-            "Lossless is only available for OPPsie format."
-        )
-        action_row2.addWidget(self._quality)
+        self._quality.setObjectName("settingCombo")
+        q_row.addWidget(self._quality, 1)
+        cg_layout.addLayout(q_row)
 
-        action_row2.addStretch()
+        ow_row = QtWidgets.QHBoxLayout()
+        ow_label = QtWidgets.QLabel("Overwrite mode:")
+        ow_label.setObjectName("fieldLabel")
+        ow_label.setFixedWidth(100)
+        ow_row.addWidget(ow_label)
 
-        self._convert_btn = QtWidgets.QPushButton("Convert Now")
-        self._convert_btn.setObjectName("convBtn")
-        self._convert_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self._convert_btn.setEnabled(False)
-        self._convert_btn.clicked.connect(self._convert)
-        action_row2.addWidget(self._convert_btn)
+        self._overwrite = QtWidgets.QComboBox()
+        self._overwrite.addItems(["Ask before overwrite", "Always overwrite", "Skip existing"])
+        self._overwrite.setObjectName("settingCombo")
+        ow_row.addWidget(self._overwrite, 1)
+        cg_layout.addLayout(ow_row)
+
+        right_panel.addWidget(comp_group)
+
+        opt_group = QtWidgets.QGroupBox("Options")
+        og_layout = QtWidgets.QVBoxLayout(opt_group)
+        og_layout.setSpacing(4)
+        og_layout.setContentsMargins(8, 12, 8, 8)
+
+        self._open_after = QtWidgets.QCheckBox("Open output folder when done")
+        self._open_after.setObjectName("optCheck")
+        og_layout.addWidget(self._open_after)
+
+        self._keep_meta = QtWidgets.QCheckBox("Preserve metadata (EXIF)")
+        self._keep_meta.setObjectName("optCheck")
+        self._keep_meta.setChecked(True)
+        og_layout.addWidget(self._keep_meta)
+
+        self._delete_orig = QtWidgets.QCheckBox("Delete original files after success")
+        self._delete_orig.setObjectName("optCheck")
+        og_layout.addWidget(self._delete_orig)
+
+        right_panel.addWidget(opt_group)
+        right_panel.addStretch()
+
+        right_wrap = QtWidgets.QWidget()
+        right_wrap.setLayout(right_panel)
+        right_wrap.setMinimumWidth(300)
+        right_wrap.setMaximumWidth(380)
+        split.addWidget(right_wrap, 1) # Right takes up 1/4 of horizontal space
+
+        content_layout.addLayout(split, 1)
+
+        self._bar = Win95ProgressBar()
+        self._bar.hide()
+        content_layout.addWidget(self._bar)
+
+        action_bar = QtWidgets.QHBoxLayout()
+        action_bar.setSpacing(10)
+
+        status_row = QtWidgets.QHBoxLayout()
+        status_row.setSpacing(8)
+        self._dot = StatusLED()
+        status_row.addWidget(self._dot)
+        self._status_label = QtWidgets.QLabel("Ready - add files to begin")
+        self._status_label.setObjectName("statusText")
+        status_row.addWidget(self._status_label, 1)
+        action_bar.addLayout(status_row, 1)
+
+        self._help_btn = QtWidgets.QPushButton("Help")
+        self._help_btn.setObjectName("btn")
+        self._help_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._help_btn.clicked.connect(self._show_help)
+        action_bar.addWidget(self._help_btn)
 
         self._cancel_btn = QtWidgets.QPushButton("Cancel")
-        self._cancel_btn.setObjectName("cancelBtn")
+        self._cancel_btn.setObjectName("btn")
         self._cancel_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self._cancel_btn.hide()
         self._cancel_btn.clicked.connect(self._cancel_conversion)
-        action_row2.addWidget(self._cancel_btn)
+        action_bar.addWidget(self._cancel_btn)
 
-        content_layout.addLayout(action_row2)
+        self._convert_btn = QtWidgets.QPushButton("OK - Convert")
+        self._convert_btn.setObjectName("primaryBtn")
+        self._convert_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._convert_btn.setEnabled(False)
+        self._convert_btn.clicked.connect(self._convert)
+        action_bar.addWidget(self._convert_btn)
 
-        # ── Status bar ──────────────────────────────────────
-        status_row = QtWidgets.QHBoxLayout()
-        status_row.setSpacing(12)
+        self._size_grip = QtWidgets.QSizeGrip(self)
+        action_bar.addWidget(self._size_grip)
 
-        self._dot = StatusDot()
-        status_row.addWidget(self._dot)
-
-        self._status_label = QtWidgets.QLabel("Ready — add files to begin")
-        self._status_label.setObjectName("statusText")
-        self._status_label.setWordWrap(True)
-        status_row.addWidget(self._status_label, 1)
-
-        credit = QtWidgets.QLabel("Created by RandomCatUser")
-        credit.setObjectName("credit")
-        status_row.addWidget(credit)
-
-        content_layout.addLayout(status_row)
+        content_layout.addLayout(action_bar)
 
         main_layout.addWidget(content)
-
-        # Signals
         self._queue.changed.connect(self._on_queue_changed)
 
     def _setup_shortcuts(self):
-        # Ctrl+O: Open files
-        open_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+O"), self)
-        open_shortcut.activated.connect(self._browse)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+O"), self).activated.connect(self._browse)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Return"), self).activated.connect(self._convert)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Delete"), self).activated.connect(self._delete_selected)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Esc"), self).activated.connect(self._cancel_conversion)
+        QtWidgets.QShortcut(QtGui.QKeySequence("F1"), self).activated.connect(self._show_help)
 
-        # Ctrl+Enter: Start conversion
-        convert_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Return"), self)
-        convert_shortcut.activated.connect(self._convert)
+    def _select_all(self):
+        items = self._queue.items()
+        if not items: return
+        all_checked = all(it.isChecked() for it in items)
+        for it in items:
+            it.setChecked(not all_checked)
 
-        # Delete: Remove selected item
-        delete_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Delete"), self)
-        delete_shortcut.activated.connect(self._delete_selected)
+    def _apply_global_format(self, fmt):
+        for it in self._queue.items():
+            it._fmt.setCurrentText(fmt)
 
-        # Escape: Cancel conversion (if running)
-        escape_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Esc"), self)
-        escape_shortcut.activated.connect(self._cancel_conversion)
+    def _show_help(self):
+        QtWidgets.QMessageBox.information(
+            self, "Help - Oppsie Convert",
+            "Shortcuts:\n"
+            "  Ctrl+O      - Add files\n"
+            "  Ctrl+Enter  - Start conversion\n"
+            "  Delete      - Remove selected file\n"
+            "  Esc         - Cancel conversion\n"
+            "  F1          - This help\n\n"
+            "Tips:\n"
+            "  - Hover a thumbnail to preview.\n"
+            "  - Click a row to select it.\n"
+            "  - Uncheck the box on the left to skip a file.\n"
+            "  - Drag the bottom right corner to resize the window."
+        )
 
     def _delete_selected(self):
-        if self._converting:
-            return
+        if self._converting: return
         item = self._queue.selectedItem()
-        if item:
-            self._queue.removeFile(item)
+        if item: self._queue.removeFile(item)
 
     def _toggle_maximize(self):
-        if self.isMaximized():
-            self.showNormal()
-        else:
-            self.showMaximized()
-
-    # ─── Slots ────────────────────────────────────────────────
+        if self.isMaximized(): self.showNormal()
+        else: self.showMaximized()
 
     def _choose_output_folder(self):
-        folder = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select Output Folder", str(Path.home())
-        )
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Output Folder", str(Path.home()))
         if folder:
             self._output_folder = Path(folder)
             self._out_path.setText(str(self._output_folder))
@@ -933,94 +885,87 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_queue_changed(self):
         count = len(self._queue.items())
-        self._convert_btn.setEnabled(count > 0 and not self._converting)
+        checked = len(self._queue.checkedItems())
+        self._convert_btn.setEnabled(checked > 0 and not self._converting)
         if count == 0:
-            self._status_label.setText("Ready — add files to begin")
+            self._status_label.setText("Ready - add files to begin")
             self._dot.setColor("green")
         else:
-            self._status_label.setText(f"{count} file{'s' if count > 1 else ''} in queue")
+            self._status_label.setText(f"{count} file(s) in queue - {checked} selected")
             self._dot.setColor("green")
 
     def _clear_queue(self):
-        if self._converting:
-            return
-        reply = QtWidgets.QMessageBox.question(
-            self, "Clear Queue",
-            "Remove all files from the queue?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
-        )
+        if self._converting: return
+        reply = QtWidgets.QMessageBox.question(self, "Clear Queue", "Remove all files from the queue?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         if reply == QtWidgets.QMessageBox.Yes:
             self._queue.clear()
 
     def _browse(self):
-        if self._converting:
-            return
-        paths, _ = QtWidgets.QFileDialog.getOpenFileNames(
-            self,
-            "Add Files",
-            str(Path.home()),
-            "Images (*.png *.jpg *.jpeg *.bmp *.webp *.gif *.oppsie);;All files (*)"
-        )
+        if self._converting: return
+        paths, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Add Files", str(Path.home()),
+            "Images (*.png *.jpg *.jpeg *.bmp *.webp *.gif *.oppsie);;All files (*)")
         for p in paths:
             self._queue.addFile(Path(p))
 
     def _convert(self):
-        items = self._queue.items()
-        if not items or self._converting:
-            return
+        items = self._queue.checkedItems()
+        if not items or self._converting: return
 
         self._converting = True
         self._convert_btn.setEnabled(False)
         self._add_btn.setEnabled(False)
         self._clear_btn.setEnabled(False)
+        self._select_all_btn.setEnabled(False)
         self._quality.setEnabled(False)
         self._out_btn.setEnabled(False)
+        self._global_fmt.setEnabled(False)
         self._cancel_btn.show()
         self._cancel_btn.setEnabled(True)
 
         lossy = self._quality.currentIndex()
-        for item in items:
-            item.reset()
-
+        for item in items: item.reset()
         self._convert_next(items, 0, lossy)
 
     def _convert_next(self, items, idx, lossy):
-        # Skip already processed (✓ or ✕)
-        while idx < len(items) and items[idx]._status_label.text() in ("✓", "✕"):
+        while idx < len(items) and items[idx]._status_label.text() in ("OK", "!", "OS"):
             idx += 1
-
         if idx >= len(items):
             self._on_all_done(items)
             return
 
         item = items[idx]
         item.setConverting()
-        self._status_label.setText(
-            f"Converting {item.path.name}  ({idx + 1}/{len(items)})…"
-        )
+        self._status_label.setText(f"Converting {item.path.name}  ({idx + 1}/{len(items)})...")
         self._dot.setColor("yellow")
         self._bar.show()
         self._bar.reset()
         self._bar.animateTo(5)
 
-        # Determine destination path
-        if self._output_folder:
-            dst_dir = self._output_folder
-        else:
-            dst_dir = item.path.parent
+        if self._output_folder: dst_dir = self._output_folder
+        else: dst_dir = item.path.parent
         ext = ".oppsie" if item.target_fmt == "oppsie" else f".{item.target_fmt}"
-        dst = dst_dir / (item.path.stem + "_converted" + ext)
-        dst.parent.mkdir(parents=True, exist_ok=True)
+        suffix = self._suffix_edit.text().strip() or ""
+        dst = dst_dir / (item.path.stem + suffix + ext)
 
-        self._worker = ConversionWorker(
-            str(item.path), str(dst), item.target_fmt, lossy
-        )
+        if dst.exists():
+            mode = self._overwrite.currentIndex()
+            if mode == 2:
+                item._status_label.setText("OS")
+                self._convert_next(items, idx + 1, lossy)
+                return
+            elif mode == 0:
+                reply = QtWidgets.QMessageBox.question(self, "File Exists", f"{dst.name} already exists. Overwrite?",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                if reply != QtWidgets.QMessageBox.Yes:
+                    self._convert_next(items, idx + 1, lossy)
+                    return
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        self._worker = ConversionWorker(str(item.path), str(dst), item.target_fmt, lossy)
         self._worker.progress.connect(self._bar.animateTo)
         self._worker.status.connect(self._status_label.setText)
-        self._worker.done.connect(
-            lambda r, i=item, ii=idx, itms=items, l=lossy:
-                self._on_file_done(r, i, ii, itms, l)
-        )
+        self._worker.done.connect(lambda r, i=item, ii=idx, itms=items, l=lossy: self._on_file_done(r, i, ii, itms, l))
         self._worker.start()
 
     def _on_file_done(self, result, item, idx, items, lossy):
@@ -1031,23 +976,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 src_size = src.stat().st_size
                 dst_size = dst.stat().st_size
                 ratio = dst_size / src_size * 100 if src_size else 0
-                self._status_label.setText(
-                    f"{src.name} → {dst.name}  |  "
-                    f"{human_size(src_size)} → {human_size(dst_size)}  |  "
-                    f"{ratio:.1f}%  |  {ms:.1f} ms"
-                )
+                self._status_label.setText(f"{src.name} -> {dst.name} | {human_size(src_size)} -> {human_size(dst_size)} | {ratio:.1f}% | {ms:.1f} ms")
+                if self._delete_orig.isChecked():
+                    try: src.unlink()
+                    except OSError: pass
             except OSError:
-                self._status_label.setText(
-                    f"{src.name} → {dst.name}  |  {ms:.1f} ms"
-                )
+                self._status_label.setText(f"{src.name} -> {dst.name} | {ms:.1f} ms")
         else:
             item.setError()
             err = result.get("error", "Unknown error")
             self._status_label.setText(f"Failed: {err}")
             self._dot.setColor("red")
-            self._dot.setActive(False)
 
-        # Continue with next item
         self._convert_next(items, idx + 1, lossy)
 
     def _on_all_done(self, items):
@@ -1056,27 +996,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self._convert_btn.setEnabled(True)
         self._add_btn.setEnabled(True)
         self._clear_btn.setEnabled(True)
+        self._select_all_btn.setEnabled(True)
         self._quality.setEnabled(True)
         self._out_btn.setEnabled(True)
+        self._global_fmt.setEnabled(True)
         self._cancel_btn.hide()
 
-        done = sum(1 for i in items if i._status_label.text() == "✓")
-        failed = sum(1 for i in items if i._status_label.text() == "✕")
+        done = sum(1 for i in items if i._status_label.text() == "OK")
+        failed = sum(1 for i in items if i._status_label.text() == "!")
 
         if failed == 0:
-            msg = f"All {done} file{'s' if done != 1 else ''} converted successfully"
+            msg = f"All {done} file(s) converted successfully"
             self._status_label.setText(msg)
             self._dot.setColor("green")
-            # System notification (message box)
+            if self._open_after.isChecked() and self._output_folder:
+                QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(self._output_folder)))
             QtWidgets.QMessageBox.information(self, "Conversion Complete", msg)
         else:
             msg = f"{done} succeeded, {failed} failed"
             self._status_label.setText(msg)
             self._dot.setColor("peach")
-            self._dot.setActive(False)
             QtWidgets.QMessageBox.warning(self, "Conversion Complete", msg)
 
     def _cancel_conversion(self):
+        if not self._converting: return
         if self._worker and self._worker.isRunning():
             self._worker.cancel()
             self._worker.terminate()
@@ -1087,12 +1030,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._convert_btn.setEnabled(True)
         self._add_btn.setEnabled(True)
         self._clear_btn.setEnabled(True)
+        self._select_all_btn.setEnabled(True)
         self._quality.setEnabled(True)
         self._out_btn.setEnabled(True)
+        self._global_fmt.setEnabled(True)
         self._cancel_btn.hide()
         self._status_label.setText("Conversion cancelled")
         self._dot.setColor("peach")
-        self._dot.setActive(False)
 
     def closeEvent(self, event):
         if self._worker and self._worker.isRunning():
@@ -1101,317 +1045,328 @@ class MainWindow(QtWidgets.QMainWindow):
             self._worker.wait(2000)
         event.accept()
 
-    # ─── Styling ──────────────────────────────────────────────
-
     def _style(self):
         self.setStyleSheet(f"""
-            /* ─── Root ───────────────────────────────────────────────── */
+            /* Root Window */
             QWidget#centralWidget {{
-                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-                    stop:0 rgba(30,30,46,0.92),
-                    stop:1 rgba(24,24,37,0.96));
-                border-radius: 18px;
-                border: 1px solid rgba(255,255,255,0.06);
+                background: {C['window']};
+                border: 1px solid {C['darker']};
+                border-top: 1px solid {C['light']};
+                border-left: 1px solid {C['light']};
+                border-right: 1px solid {C['darker']};
+                border-bottom: 1px solid {C['darker']};
             }}
 
-            /* ─── Title bar ──────────────────────────────────────────── */
+            /* Title Bar */
             QWidget#titleBar {{
-                background: rgba(17,17,27,0.6);
-                border-top-left-radius: 18px;
-                border-top-right-radius: 18px;
-                border-bottom: 1px solid rgba(255,255,255,0.04);
+                background: {C['active_title']};
+                border-bottom: 1px solid {C['darker']};
             }}
             QLabel#titleIcon {{
-                color: {C['mauve']};
-                font-size: 20px;
-                padding-left: 8px;
+                color: {C['active_title_text']};
+                font-size: 14px;
+                padding-left: 4px;
             }}
             QLabel#titleText {{
-                color: {C['text']};
-                font-size: 15px;
-                font-weight: 600;
-                padding-left: 8px;
-                letter-spacing: 0.3px;
-            }}
-            QPushButton#titleMinBtn,
-            QPushButton#titleMaxBtn,
-            QPushButton#titleCloseBtn {{
-                background: transparent;
-                border: none;
-                color: {C['overlay2']};
-                font-size: 14px;
-                font-weight: 500;
-                padding: 0;
-                border-radius: 4px;
-            }}
-            QPushButton#titleMinBtn:hover,
-            QPushButton#titleMaxBtn:hover {{
-                background: rgba(255,255,255,0.08);
-                color: {C['text']};
-            }}
-            QPushButton#titleCloseBtn:hover {{
-                background: rgba(243,139,168,0.2);
-                color: {C['red']};
-            }}
-
-            /* ─── Content ────────────────────────────────────────────── */
-            QWidget#content {{
-                background: transparent;
-                border-bottom-left-radius: 18px;
-                border-bottom-right-radius: 18px;
-            }}
-
-            /* ─── Header ─────────────────────────────────────────────── */
-            QLabel#brand {{
-                color: {C['mauve']};
-                font-size: 24px;
-                font-weight: bold;
-                letter-spacing: 0.6px;
-            }}
-            QLabel#ver {{
-                color: {C['surface2']};
+                color: {C['active_title_text']};
                 font-size: 12px;
-                padding-right: 4px;
+                font-weight: bold;
+                padding-left: 4px;
             }}
-
-            /* ─── Stacked widget ────────────────────────────────────── */
-            QStackedWidget#stack {{
-                background: transparent;
-                border: none;
-            }}
-
-            /* ─── Drop zone ──────────────────────────────────────────── */
-            QWidget#dropZone {{
-                background: transparent;
-                border: none;
-            }}
-            QLabel#dzTitle {{
+            QPushButton#titleBtn {{
+                background: {C['window']};
                 color: {C['text']};
-                font-size: 20px;
-                font-weight: 300;
+                border-top: 1px solid {C['light']};
+                border-left: 1px solid {C['light']};
+                border-right: 1px solid {C['darker']};
+                border-bottom: 1px solid {C['darker']};
+                font-weight: bold;
+                font-size: 12px;
+                padding: 0px;
+                margin: 2px;
             }}
-            QLabel#dzSub {{
-                color: {C['overlay0']};
-                font-size: 13px;
-                letter-spacing: 1.8px;
+            QPushButton#titleBtn:pressed {{
+                border-top: 1px solid {C['darker']};
+                border-left: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
             }}
 
-            /* ─── File scroll area ──────────────────────────────────── */
+            QWidget#content {{ background: {C['window']}; }}
+            QLabel#panelTitle {{ color: {C['text']}; font-size: 12px; font-weight: bold; }}
+            QLabel#countLabel {{ color: {C['text']}; font-size: 11px; }}
+
+            /* Group Box */
+            QGroupBox {{
+                background: {C['window']};
+                border: 1px solid {C['dark']};
+                border-top: 1px solid {C['darker']};
+                border-left: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
+                border-radius: 0px;
+                margin-top: 12px;
+                padding-top: 8px;
+                font-weight: bold;
+                color: {C['text']};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 3px;
+                background: {C['window']};
+            }}
+
+            QLabel#fieldLabel {{ color: {C['text']}; font-size: 12px; }}
+
+            QWidget#dropZone {{ background: {C['window']}; border: none; }}
+            QLabel#dzTitle {{ color: {C['text']}; font-size: 12px; font-weight: bold; }}
+            QLabel#dzSub {{ color: {C['text']}; font-size: 11px; }}
+
+            /* File List Sunken Box */
             QScrollArea#fileScroll {{
-                background: rgba(24,24,37,0.5);
-                border: 1px solid rgba(255,255,255,0.05);
-                border-radius: 16px;
+                background: {C['window']};
+                border: 1px solid {C['darker']};
+                border-top: 1px solid {C['darker']};
+                border-left: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
             }}
 
-            /* ─── File item ──────────────────────────────────────────── */
+            /* File Items */
             QFrame#fileItem {{
-                background: rgba(17,17,27,0.8);
-                border: 1px solid rgba(255,255,255,0.06);
-                border-radius: 12px;
+                background: {C['window']};
+                border: none;
+                border-bottom: 1px dotted {C['dark']};
             }}
             QFrame#fileItem[selected="true"] {{
-                border: 2px solid {C['mauve']};
-                background: rgba(203,166,247,0.08);
+                background: {C['select']};
+            }}
+            QFrame#fileItem[selected="true"] QLabel#fileName,
+            QFrame#fileItem[selected="true"] QLabel#fileSize,
+            QFrame#fileItem[selected="true"] QLabel#arrow {{
+                color: {C['select_text']};
             }}
             QFrame#fileItem[state="converting"] {{
-                background: rgba(203,166,247,0.08);
-                border-color: rgba(203,166,247,0.25);
+                background: #FFFFCC; 
+                border: 1px solid {C['darker']};
             }}
             QFrame#fileItem[state="done"] {{
-                background: rgba(166,227,161,0.06);
-                border-color: rgba(166,227,161,0.18);
+                background: #CCFFCC; 
             }}
             QFrame#fileItem[state="error"] {{
-                background: rgba(243,139,168,0.06);
-                border-color: rgba(243,139,168,0.18);
+                background: #FFCCCC; 
             }}
 
-            QLabel#fileName {{
+            /* Checkboxes */
+            QCheckBox#fileCheck, QCheckBox#optCheck {{
+                spacing: 6px;
                 color: {C['text']};
-                font-size: 14px;
-                font-weight: 600;
-            }}
-            QLabel#fileSize {{
-                color: {C['overlay1']};
-                font-size: 11px;
-            }}
-            QLabel#arrow {{
-                color: {C['surface2']};
-                font-size: 16px;
-                padding: 0 6px;
-            }}
-
-            /* ─── Combo boxes ───────────────────────────────────────── */
-            QComboBox#fmtCombo, QComboBox#qualCombo {{
-                background: rgba(30,30,46,0.7);
-                color: {C['text']};
-                border: 1px solid {C['surface0']};
-                border-radius: 6px;
-                padding: 5px 10px;
                 font-size: 12px;
-                font-weight: 600;
             }}
-            QComboBox#fmtCombo::drop-down,
-            QComboBox#qualCombo::drop-down {{
+            QCheckBox#fileCheck::indicator, QCheckBox#optCheck::indicator {{
+                width: 13px; height: 13px;
+                background: {C['window']};
+                border: 1px solid {C['darker']};
+                border-top: 1px solid {C['darker']};
+                border-left: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
+            }}
+
+            QLabel#thumbLabel {{
+                background: {C['window']};
+                border: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
+            }}
+            QLabel#fileName {{ color: {C['text']}; font-size: 12px; }}
+            QLabel#fileSize {{ color: {C['text']}; font-size: 11px; }}
+            QLabel#arrow {{ color: {C['text']}; font-size: 12px; }}
+
+            /* Combo Boxes */
+            QComboBox#fmtCombo, QComboBox#settingCombo {{
+                background: {C['window']};
+                color: {C['text']};
+                border: 1px solid {C['darker']};
+                border-top: 1px solid {C['darker']};
+                border-left: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
+                padding: 1px 4px;
+                font-size: 12px;
+                min-height: 18px;
+            }}
+            QComboBox#fmtCombo::drop-down, QComboBox#settingCombo::drop-down {{
+                width: 16px;
                 border: none;
-                width: 22px;
-                subcontrol-origin: padding;
-                subcontrol-position: right center;
+                background: {C['window']};
+                border-left: 1px solid {C['darker']};
             }}
-            QComboBox#fmtCombo::down-arrow,
-            QComboBox#qualCombo::down-arrow {{
+            QComboBox#fmtCombo::down-arrow, QComboBox#settingCombo::down-arrow {{
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 5px solid {C['overlay1']};
-                margin-right: 6px;
+                border-top: 5px solid {C['text']};
+                margin-right: 4px;
             }}
-            QComboBox#fmtCombo QAbstractItemView,
-            QComboBox#qualCombo QAbstractItemView {{
-                background: {C['crust']};
+            QComboBox#fmtCombo QAbstractItemView, QComboBox#settingCombo QAbstractItemView {{
+                background: {C['window']};
                 color: {C['text']};
-                border: 1px solid {C['surface0']};
-                border-radius: 6px;
-                selection-background-color: {C['surface0']};
-                selection-color: {C['mauve']};
+                border: 1px solid {C['darker']};
+                selection-background-color: {C['select']};
+                selection-color: {C['select_text']};
                 outline: none;
+                padding: 1px;
             }}
 
-            /* ─── Buttons ────────────────────────────────────────────── */
-            QPushButton#addBtn, QPushButton#clearBtn {{
-                background: rgba(203,166,247,0.06);
-                color: {C['mauve']};
-                border: 1px solid rgba(203,166,247,0.3);
-                border-radius: 22px;
-                padding: 9px 22px;
-                font-size: 13px;
-                font-weight: 600;
-            }}
-            QPushButton#addBtn:hover, QPushButton#clearBtn:hover {{
-                background: rgba(203,166,247,0.12);
-                border-color: {C['mauve']};
-            }}
-            QPushButton#addBtn:disabled, QPushButton#clearBtn:disabled {{
-                color: {C['surface2']};
-                border-color: {C['surface1']};
-                background: transparent;
-            }}
-
-            QPushButton#outBtn {{
-                background: rgba(166,227,161,0.06);
-                color: {C['green']};
-                border: 1px solid rgba(166,227,161,0.3);
-                border-radius: 22px;
-                padding: 9px 16px;
-                font-size: 12px;
-                font-weight: 600;
-            }}
-            QPushButton#outBtn:hover {{
-                background: rgba(166,227,161,0.12);
-                border-color: {C['green']};
-            }}
-            QPushButton#outBtn:disabled {{
-                color: {C['surface2']};
-                border-color: {C['surface1']};
-            }}
-
+            /* Line Edits */
             QLineEdit#outPath {{
-                background: rgba(30,30,46,0.6);
+                background: #FFFFFF;
                 color: {C['text']};
-                border: 1px solid {C['surface0']};
-                border-radius: 6px;
-                padding: 5px 8px;
+                border: 1px solid {C['darker']};
+                border-top: 1px solid {C['darker']};
+                border-left: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
+                padding: 1px 4px;
                 font-size: 12px;
-            }}
-            QLabel#outLabel {{
-                color: {C['overlay1']};
-                font-size: 12px;
-                font-weight: 500;
             }}
 
-            QPushButton#convBtn {{
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                    stop:0 {C['mauve']}, stop:1 {C['pink']});
-                color: {C['base']};
-                border: none;
-                border-radius: 22px;
-                padding: 9px 34px;
+            /* Standard 3D Buttons */
+            QPushButton#btn, QPushButton#removeBtn {{
+                background: {C['window']};
+                color: {C['text']};
+                border-top: 2px solid {C['light']};
+                border-left: 2px solid {C['light']};
+                border-right: 2px solid {C['darker']};
+                border-bottom: 2px solid {C['darker']};
+                padding: 4px 12px;
+                font-size: 12px;
+                min-width: 50px;
+                border-radius: 0px;
+            }}
+            QPushButton#btn:pressed, QPushButton#removeBtn:pressed {{
+                border-top: 2px solid {C['darker']};
+                border-left: 2px solid {C['darker']};
+                border-right: 2px solid {C['light']};
+                border-bottom: 2px solid {C['light']};
+                padding: 5px 11px 3px 13px;
+            }}
+            QPushButton#btn:disabled, QPushButton#removeBtn:disabled {{
+                color: {C['dark']};
+                border-top: 2px solid {C['window']};
+                border-left: 2px solid {C['window']};
+                border-right: 2px solid {C['dark']};
+                border-bottom: 2px solid {C['dark']};
+            }}
+
+            /* Primary Convert Button */
+            QPushButton#primaryBtn {{
+                background: {C['window']};
+                color: {C['text']};
+                border-top: 2px solid {C['light']};
+                border-left: 2px solid {C['light']};
+                border-right: 2px solid {C['darker']};
+                border-bottom: 2px solid {C['darker']};
+                padding: 4px 16px;
+                font-size: 12px;
                 font-weight: bold;
-                font-size: 14px;
-                min-width: 150px;
+                border-radius: 0px;
             }}
-            QPushButton#convBtn:hover {{
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                    stop:0 {C['lavender']}, stop:1 {C['pink']});
+            QPushButton#primaryBtn:pressed {{
+                border-top: 2px solid {C['darker']};
+                border-left: 2px solid {C['darker']};
+                border-right: 2px solid {C['light']};
+                border-bottom: 2px solid {C['light']};
+                padding: 5px 15px 3px 17px;
             }}
-            QPushButton#convBtn:disabled {{
-                background: {C['surface0']};
-                color: {C['surface2']};
-            }}
-
-            QPushButton#cancelBtn {{
-                background: rgba(243,139,168,0.15);
-                color: {C['red']};
-                border: 1px solid rgba(243,139,168,0.3);
-                border-radius: 22px;
-                padding: 9px 22px;
-                font-weight: bold;
-                font-size: 13px;
-            }}
-            QPushButton#cancelBtn:hover {{
-                background: rgba(243,139,168,0.25);
-                border-color: {C['red']};
+            QPushButton#primaryBtn:disabled {{
+                color: {C['dark']};
             }}
 
-            /* ─── Remove button ──────────────────────────────────────── */
-            QPushButton#removeBtn {{
-                background: transparent;
-                color: {C['surface2']};
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-            }}
-            QPushButton#removeBtn:hover {{
-                background: rgba(243,139,168,0.15);
-                color: {C['red']};
-            }}
-            QPushButton#removeBtn:disabled {{
-                color: {C['surface0']};
-            }}
+            QLabel#statusText {{ color: {C['text']}; font-size: 12px; }}
 
-            /* ─── Status label ───────────────────────────────────────── */
-            QLabel#statusText {{
-                color: {C['overlay2']};
-                font-size: 12px;
-                font-family: "Cascadia Code", "Consolas", monospace;
-            }}
-            QLabel#credit {{
-                color: {C['overlay1']};
-                font-size: 11px;
-                font-weight: 300;
-                padding-right: 4px;
-            }}
-
-            /* ─── Scroll bars ────────────────────────────────────────── */
+            /* Chunky 3D Scrollbars - Vertical */
             QScrollBar:vertical {{
-                background: transparent;
-                width: 6px;
+                background: {C['window']};
+                width: 16px;
+                border: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
             }}
             QScrollBar::handle:vertical {{
-                background: {C['surface1']};
-                border-radius: 3px;
-                min-height: 24px;
+                background: {C['window']};
+                border-top: 2px solid {C['light']};
+                border-left: 2px solid {C['light']};
+                border-right: 2px solid {C['darker']};
+                border-bottom: 2px solid {C['darker']};
+                min-height: 20px;
             }}
-            QScrollBar::handle:vertical:hover {{
-                background: {C['surface2']};
+            QScrollBar::handle:vertical:pressed {{
+                border-top: 2px solid {C['darker']};
+                border-left: 2px solid {C['darker']};
+                border-right: 2px solid {C['light']};
+                border-bottom: 2px solid {C['light']};
             }}
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {{
-                height: 0;
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                background: {C['window']};
+                border-top: 2px solid {C['light']};
+                border-left: 2px solid {C['light']};
+                border-right: 2px solid {C['darker']};
+                border-bottom: 2px solid {C['darker']};
+                height: 16px;
+                subcontrol-origin: margin;
             }}
-            QScrollBar::add-page:vertical,
-            QScrollBar::sub-page:vertical {{
-                background: none;
+            QScrollBar::add-line:vertical:pressed, QScrollBar::sub-line:vertical:pressed {{
+                border-top: 2px solid {C['darker']};
+                border-left: 2px solid {C['darker']};
+                border-right: 2px solid {C['light']};
+                border-bottom: 2px solid {C['light']};
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: {C['window']};
+            }}
+
+            /* Chunky 3D Scrollbars - Horizontal */
+            QScrollBar:horizontal {{
+                background: {C['window']};
+                height: 16px;
+                border: 1px solid {C['darker']};
+                border-right: 1px solid {C['light']};
+                border-bottom: 1px solid {C['light']};
+            }}
+            QScrollBar::handle:horizontal {{
+                background: {C['window']};
+                border-top: 2px solid {C['light']};
+                border-left: 2px solid {C['light']};
+                border-right: 2px solid {C['darker']};
+                border-bottom: 2px solid {C['darker']};
+                min-width: 20px;
+            }}
+            QScrollBar::handle:horizontal:pressed {{
+                border-top: 2px solid {C['darker']};
+                border-left: 2px solid {C['darker']};
+                border-right: 2px solid {C['light']};
+                border-bottom: 2px solid {C['light']};
+            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                background: {C['window']};
+                border-top: 2px solid {C['light']};
+                border-left: 2px solid {C['light']};
+                border-right: 2px solid {C['darker']};
+                border-bottom: 2px solid {C['darker']};
+                width: 16px;
+                subcontrol-origin: margin;
+            }}
+            QScrollBar::add-line:horizontal:pressed, QScrollBar::sub-line:horizontal:pressed {{
+                border-top: 2px solid {C['darker']};
+                border-left: 2px solid {C['darker']};
+                border-right: 2px solid {C['light']};
+                border-bottom: 2px solid {C['light']};
+            }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: {C['window']};
             }}
         """)
 
@@ -1423,22 +1378,26 @@ def main():
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
     app = QtWidgets.QApplication(sys.argv)
-    app.setStyle("Fusion")
+    app.setStyle("Windows") 
 
     palette = QtGui.QPalette()
-    palette.setColor(QtGui.QPalette.Window, QtGui.QColor(C["base"]))
+    palette.setColor(QtGui.QPalette.Window, QtGui.QColor(C["window"]))
     palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(C["text"]))
-    palette.setColor(QtGui.QPalette.Base, QtGui.QColor(C["crust"]))
-    palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(C["surface0"]))
+    palette.setColor(QtGui.QPalette.Base, QtGui.QColor(C["window"]))
+    palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(C["window"]))
     palette.setColor(QtGui.QPalette.Text, QtGui.QColor(C["text"]))
-    palette.setColor(QtGui.QPalette.Button, QtGui.QColor(C["surface0"]))
+    palette.setColor(QtGui.QPalette.Button, QtGui.QColor(C["window"]))
     palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor(C["text"]))
+    palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor(C["select"]))
+    palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor(C["select_text"]))
     app.setPalette(palette)
+
+    font = QtGui.QFont("Tahoma", 8)
+    app.setFont(font)
 
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()

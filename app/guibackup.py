@@ -1,4 +1,4 @@
-import os
+===import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -11,20 +11,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import oppsie
 
-# 90s Windows 95 Color Palette
+# Modern dark theme colors
 COLORS = {
-    "bg": "#C0C0C0",          # Classic Gray
-    "surface": "#C0C0C0",     # Toolbar background
-    "surface_light": "#C0C0C0",# Button face
-    "accent": "#000080",      # Navy Blue (for title/selection)
-    "accent_hover": "#000080",
-    "text_main": "#000000",   # Black text
-    "text_dim": "#000000",
-    "text_accent": "#FFFFFF", # White text on navy
-    "canvas_bg": "#FFFFFF",   # White canvas for images
-    "shadow_dark": "#808080", # 3D Border dark
-    "shadow_black": "#000000",# 3D Border black
-    "shadow_light": "#FFFFFF",# 3D Border light
+    "bg": "#0D0D0D",
+    "surface": "#1A1A1A",
+    "surface_light": "#2A2A2A",
+    "accent": "#00E5FF",
+    "accent_hover": "#00B8D4",
+    "text_main": "#E0E0E0",
+    "text_dim": "#888888",
+    "text_accent": "#000000",
 }
 
 def load_image_from_path(path: str | os.PathLike) -> Image.Image:
@@ -38,9 +34,9 @@ class OppsieViewerApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Oppsie | Image Viewer")
-        self.root.geometry("800x600")
+        self.root.geometry("1100x750")
         self.root.configure(bg=COLORS["bg"])
-        self.root.minsize(320, 240)
+        self.root.minsize(600, 400)
 
         # Image state
         self.image: Optional[Image.Image] = None
@@ -49,71 +45,61 @@ class OppsieViewerApp:
         self.pan_x = 0
         self.pan_y = 0
         self.drag_data = {"x": 0, "y": 0}
-        self.status_var = tk.StringVar(value="Ready - Open an image to start")
+        self.status_var = tk.StringVar(value="Ready – Open an image to start")
 
         self._setup_style()
         self._build_ui()
         self._bind_shortcuts()
 
     def _setup_style(self) -> None:
-        """Configure ttk styles for a 90s look."""
+        """Configure ttk styles for a modern look."""
         style = ttk.Style()
-        # 'default' or 'classic' gives us the older beveled ttk widgets
-        style.theme_use("classic")
+        style.theme_use("clam")
 
         style.configure("Toolbar.TFrame", background=COLORS["surface"])
-        style.configure("Status.TLabel", background=COLORS["bg"], foreground=COLORS["text_main"],
-                        font=("MS Sans Serif", 8), anchor="w")
+        style.configure("Status.TLabel", background=COLORS["bg"], foreground=COLORS["text_dim"],
+                        font=("Consolas", 9), anchor="w")
         style.configure("Title.TLabel", background=COLORS["surface"], foreground=COLORS["text_main"],
-                        font=("MS Sans Serif", 8, "bold"), anchor="w")
+                        font=("Segoe UI", 12, "bold"), anchor="w")
 
     def _build_ui(self) -> None:
-        # --- Main Container to hold everything with a classic 2px sunken border ---
-        main_frame = tk.Frame(self.root, bg=COLORS["bg"], relief=tk.FLAT, bd=0)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # --- Toolbar (Raised 3D border) ---
-        toolbar = tk.Frame(main_frame, bg=COLORS["surface"], relief=tk.RAISED, bd=2, height=36)
-        toolbar.pack(fill=tk.X, side=tk.TOP)
+        # --- Toolbar ---
+        toolbar = ttk.Frame(self.root, style="Toolbar.TFrame", height=50)
+        toolbar.pack(fill=tk.X, side=tk.TOP, pady=(0, 10))
         toolbar.pack_propagate(False)
 
-        # Buttons: using tk.Button for full colour and 3D relief control
+        # Buttons: using tk.Button for full colour control
         btn_open = self._make_tool_button(toolbar, "Open", self.open_file)
-        btn_open.pack(side=tk.LEFT, padx=(2, 4), pady=2)
+        btn_open.pack(side=tk.LEFT, padx=(10, 5), pady=8)
 
-        # 90s Separator (Etched look)
-        sep = tk.Frame(toolbar, bg=COLORS["surface"], relief=tk.SUNKEN, bd=1, width=2)
-        sep.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
 
-        btn_zoom_in = self._make_tool_button(toolbar, "Zoom In", self.zoom_in)
-        btn_zoom_in.pack(side=tk.LEFT, padx=2, pady=2)
+        btn_zoom_in = self._make_tool_button(toolbar, "+ Zoom In", self.zoom_in)
+        btn_zoom_in.pack(side=tk.LEFT, padx=2, pady=8)
 
-        btn_zoom_out = self._make_tool_button(toolbar, "Zoom Out", self.zoom_out)
-        btn_zoom_out.pack(side=tk.LEFT, padx=2, pady=2)
+        btn_zoom_out = self._make_tool_button(toolbar, "- Zoom Out", self.zoom_out)
+        btn_zoom_out.pack(side=tk.LEFT, padx=2, pady=8)
 
         btn_fit = self._make_tool_button(toolbar, "Fit", self.fit_to_window)
-        btn_fit.pack(side=tk.LEFT, padx=2, pady=2)
+        btn_fit.pack(side=tk.LEFT, padx=2, pady=8)
 
         btn_reset = self._make_tool_button(toolbar, "Reset", self.reset_view)
-        btn_reset.pack(side=tk.LEFT, padx=2, pady=2)
+        btn_reset.pack(side=tk.LEFT, padx=2, pady=8)
 
-        # Spacer
+        # Spacer to push right-aligned info (optional)
         spacer = tk.Frame(toolbar, bg=COLORS["surface"])
-        spacer.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        spacer.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
-        # --- Main Canvas (Sunken 3D border) ---
-        canvas_frame = tk.Frame(main_frame, bg=COLORS["bg"], relief=tk.FLAT, bd=0)
-        canvas_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-
+        # --- Main Canvas ---
         self.canvas = tk.Canvas(
-            canvas_frame,
-            bg=COLORS["canvas_bg"],
-            relief=tk.SUNKEN,
-            bd=2,
-            highlightthickness=0,
+            self.root,
+            bg=COLORS["bg"],
+            highlightthickness=2,
+            highlightbackground=COLORS["surface_light"],
+            relief=tk.FLAT,
             cursor="hand2"  # indicates draggable
         )
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 10))
 
         # Bind mouse events
         self.canvas.bind("<MouseWheel>", self._on_zoom)
@@ -121,40 +107,35 @@ class OppsieViewerApp:
         self.canvas.bind("<B1-Motion>", self._on_drag_motion)
         self.canvas.bind("<Configure>", self._on_canvas_resize)
 
-        # --- Status Bar (Sunken 3D border) ---
-        status_frame = tk.Frame(main_frame, bg=COLORS["bg"], relief=tk.SUNKEN, bd=1)
-        status_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=2, pady=2)
-        
-        # Using tk.Label for strict background control
-        self.status_label = tk.Label(
-            status_frame, 
-            textvariable=self.status_var, 
-            bg=COLORS["bg"], 
-            fg=COLORS["text_main"], 
-            font=("MS Sans Serif", 8), 
-            anchor="w",
-            padx=4
-        )
-        self.status_label.pack(fill=tk.X, side=tk.LEFT)
+        # --- Status Bar ---
+        self.status_label = ttk.Label(self.root, style="Status.TLabel", textvariable=self.status_var)
+        self.status_label.pack(fill=tk.X, padx=20, pady=(0, 15))
 
     def _make_tool_button(self, parent, text, command):
-        """Helper to create a consistent classic 90s 3D button."""
+        """Helper to create a consistent flat button with hover effects."""
         btn = tk.Button(
             parent,
             text=text,
             command=command,
             bg=COLORS["surface_light"],
             fg=COLORS["text_main"],
-            font=("MS Sans Serif", 8),
-            relief=tk.RAISED,
-            bd=2,
-            padx=8,
-            pady=2,
+            font=("Segoe UI", 9, "bold"),
+            relief=tk.FLAT,
+            padx=16,
+            pady=6,
             cursor="hand2",
-            activebackground=COLORS["surface_light"],
-            activeforeground=COLORS["text_main"],
+            activebackground=COLORS["accent"],
+            activeforeground=COLORS["text_accent"],
+            borderwidth=0,
             highlightthickness=0
         )
+        # Hover effect using events
+        def on_enter(e):
+            btn.config(bg=COLORS["accent"], fg=COLORS["text_accent"])
+        def on_leave(e):
+            btn.config(bg=COLORS["surface_light"], fg=COLORS["text_main"])
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
         return btn
 
     def _bind_shortcuts(self) -> None:

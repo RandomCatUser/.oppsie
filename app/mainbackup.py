@@ -1,856 +1,1744 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import time
-import struct
+import math
 from pathlib import Path
+from typing import List, Optional
+
 from PIL import Image
+from PyQt5 import QtCore, QtGui, QtWidgets
 
-from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.screen import Screen, ModalScreen
-from textual.widgets import Header, Footer, DirectoryTree, Label, RadioSet, RadioButton, Select, Button, ProgressBar, Static, Input
-from textual.reactive import reactive
-from textual.worker import get_current_worker
-from rich.text import Text
-
-# Ensure root package is visible
+# Add parent directory to import custom modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import oppsie
 from converter.to_oppsie import convert_to_oppsie
 from converter.from_oppsie import convert_from_oppsie
-from converter.batch_runner import batch_convert
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  DESIGN TOKENS  (Catppuccin Mocha)
+# ═══════════════════════════════════════════════════════════════════════════
+C = {
+    "base": "#1e1e2e",
+    "mantle": "#181825",
+    "crust": "#11111b",
+    "surface0": "#313244",
+    "surface1": "#45475a",
+    "surface2": "#585b70",
+    "overlay0": "#6c7086",
+    "overlay1": "#7f849c",
+    "overlay2": "#a6adc8",
+    "text": "#cdd6f4",
+    "subtext0": "#a6adc8",
+    "subtext1": "#bac2de",
+    "mauve": "#cba6f7",
+    "pink": "#f5c2e7",
+    "lavender": "#b4befe",
+    "blue": "#89b4fa",
+    "sapphire": "#74c7ec",
+    "green": "#a6e3a1",
+    "yellow": "#f9e2af",
+    "red": "#f38ba8",
+    "peach": "#fab387",
+    "teal": "#94e2d5",
+    "rosewater": "#f5e0dc",
+}
+
+FORMATS = ["oppsie", "png", "jpeg", "webp", "bmp"]
 
 
-def load_image_from_path(path: str | os.PathLike) -> Image.Image:
-    cleaned_str = str(path).strip().strip('"').strip("'").strip()
-    cleaned_path = Path(cleaned_str).resolve()
+# ═══════════════════════════════════════════════════════════════════════════
+#  HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+def load_image(path):
+    p = Path(str(path).strip().strip('"').strip("'")).resolve()
+    if p.suffix.lower() == ".oppsie":
+        with open(p, "rb") as f:
+            return oppsie.decode(f.read())
+    return Image.open(p)
 
-    if cleaned_path.suffix.lower() == ".oppsie":
-        with open(cleaned_path, "rb") as handle:
-            return oppsie.decode(handle.read())
 
-    return Image.open(cleaned_path)
+def human_size(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB"
 
 
-class ImageDirectoryTree(DirectoryTree):
-    def filter_paths(self, paths):
-        valid_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".gif", ".oppsie"}
-        return [
-            p for p in paths 
-            if p.is_dir() or p.suffix.lower() in valid_extensions
-        ]
+def round_pixmap(src, size, radius):
+    scaled = src.scaled(
+        size, size,
+        QtCore.Qt.KeepAspectRatioByExpanding,
+        QtCore.Qt.SmoothTransformation
+    )
+    out = QtGui.QPixmap(size, size)
+    out.fill(QtCore.Qt.transparent)
+    p = QtGui.QPainter(out)
+    p.setRenderHint(QtGui.QPainter.Antialiasing)
+    clip = QtGui.QPainterPath()
+    clip.addRoundedRect(0, 0, size, size, radius, radius)
+    p.setClipPath(clip)
+    p.drawPixmap(0, 0, scaled)
+    p.end()
+    return out
 
-class PreviewWidget(Static):
-    scan_line_active = reactive(False)
-    scan_line_y = reactive(0)
-    reveal_rows = reactive(0)
-    
-    def __init__(self, title: str, **kwargs):
-        super().__init__(**kwargs)
-        self.title = title
-        self.img = None
-        self.image_rows = 0
-        self.image_cols = 0
-        
-    def on_mount(self) -> None:
-        self.set_interval(0.08, self.advance_scan_line)
-        self.set_interval(0.03, self.advance_reveal)
-        
-    def set_image(self, img: Image.Image):
-        self.img = img
-        self.scan_line_active = False
-        self.reveal_rows = 0  # Trigger progressive CRT reveal
-        self.refresh()
-        
-    def start_scan(self):
-        self.scan_line_active = True
-        self.scan_line_y = 0
-        self.reveal_rows = 99999
-        self.refresh()
-        
-    def stop_scan(self):
-        self.scan_line_active = False
-        self.refresh()
-        
-    def advance_scan_line(self):
-        if self.scan_line_active and self.image_rows > 0:
-            self.scan_line_y = (self.scan_line_y + 1) % self.image_rows
-            self.refresh()
-            
-    def advance_reveal(self):
-        if self.img is not None and self.reveal_rows < self.image_rows:
-            self.reveal_rows += 1
-            self.refresh()
-            
-    def render(self) -> Text:
-        if self.img is None:
-            t = Text(f"\n\n\n\n[ {self.title} ]\n\nNo Image Loaded\n\nSelect a file\nfrom the browser", justify="center")
-            t.stylize("bold dim color(10)")
-            return t
-            
-        max_w = 34
-        max_h = 24
-        
-        w, h = self.img.size
-        aspect = w / h
-        
-        if w > h:
-            new_w = max_w
-            new_h = int(2 * new_w / aspect)
-            if new_h > max_h * 2:
-                new_h = max_h * 2
-                new_w = int(new_h * aspect / 2)
-        else:
-            new_h = max_h * 2
-            new_w = int(new_h * aspect / 2)
-            if new_w > max_w:
-                new_w = max_w
-                new_h = int(2 * new_w / aspect)
-                
-        new_h = (new_h // 2) * 2
-        if new_h < 2: new_h = 2
-        if new_w < 1: new_w = 1
-        
-        resized = self.img.convert("RGB").resize((new_w, new_h), Image.Resampling.BILINEAR)
-        
-        self.image_rows = new_h // 2
-        self.image_cols = new_w
-        
-        text = Text()
-        text.append(f"┌─ {self.title} ({w}x{h}) ─┐\n", style="bold green")
-        
-        for r_idx in range(self.image_rows):
-            if r_idx > self.reveal_rows:
-                # CRT faint grid row lines
-                text.append("░" * new_w, style="#1e1e2e")  # matches Catppuccin Base background
-                text.append("\n")
-                continue
-                
-            if self.scan_line_active and r_idx == self.scan_line_y:
-                text.append("▒" * new_w, style="bold color(10) blink")
-                text.append("\n")
-                continue
-                
-            y = r_idx * 2
-            for x in range(new_w):
-                r1, g1, b1 = resized.getpixel((x, y))
-                r2, g2, b2 = resized.getpixel((x, y + 1))
-                
-                # Format hexadecimal strings directly for Rich rendering style properties
-                hex_top = f"#{r1:02x}{g1:02x}{b1:02x}"
-                hex_bottom = f"#{r2:02x}{g2:02x}{b2:02x}"
-                
-                text.append("▄", style=f"{hex_bottom} on {hex_top}")
-            text.append("\n")
-            
-        text.append("└" + "─" * new_w + "┘\n", style="bold green")
-        return text
 
-class BootScreen(Screen):
-    BOOT_LOG = [
-        "OPPSIE BIOS v1.0.0 (C) 2026 ANTIGRAVITY CORP.",
-        "CPU: AGY-9000 @ 4.77MHz",
-        "RAM: 640KB BASE MEMORY",
-        "SYSTEM DIAGNOSTIC: PASS",
-        "MOUNTING HOST SYSTEM DIRECTORIES... OK",
-        "LOADING CODECS:",
-        "  - OPPSIE CORE DECODER v1.0 [LOADED]",
-        "  - OPPSIE CORE ENCODER v1.0 [LOADED]",
-        "  - PIL IMAGE WRAPPERS     [LOADED]",
-        "ESTABLISHING CRT PREVIEW GRID... OK",
-        "INITIALIZING INTERFACE ENGINE...",
-        "MOUNTING DASHBOARD CONTROLS...",
-        "SYSTEMS ONLINE. BOOT SUCCESSFUL."
-    ]
-    
-    ASCII_LOGO = r"""
-  ____  ____  ____  ____  ____  ____ 
- /  _ \/  __\/  __\/  __\/  _ \/  __\
- | / \||  \/||  \/||  \/|| / \||  \/|
- | \_/||  __/|  __/|  __/| \_/||  __/
- \____/\_/   \_/   \_/   \____/\_/   
-    """
-
-    def compose(self) -> ComposeResult:
-        yield Vertical(
-            Static("", id="boot_log"),
-            classes="boot_container"
+def make_thumbnail(path, size=44):
+    try:
+        img = load_image(path)
+        thumb = img.copy()
+        thumb.thumbnail((size, size), Image.Resampling.LANCZOS)
+        if thumb.mode == "RGBA":
+            thumb = thumb.convert("RGB")
+        elif thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+        data = thumb.tobytes("raw", "RGB")
+        qi = QtGui.QImage(
+            data, thumb.width, thumb.height,
+            3 * thumb.width, QtGui.QImage.Format_RGB888
         )
+        return round_pixmap(QtGui.QPixmap.fromImage(qi), size, 8)
+    except Exception:
+        return None
 
-    def on_mount(self) -> None:
-        self.log_idx = 0
-        self.current_text = ""
-        self.set_interval(0.12, self.advance_boot)
-        
-        if "--test-boot" in sys.argv:
-            self.set_timer(2.0, self.app.exit)
 
-    def advance_boot(self):
-        boot_log_widget = self.query_one("#boot_log")
-        
-        if self.log_idx < len(self.BOOT_LOG):
-            line = self.BOOT_LOG[self.log_idx]
-            self.current_text += line + "\n"
-            boot_log_widget.update(Text(self.current_text, style="green"))
-            self.log_idx += 1
-        elif self.log_idx == len(self.BOOT_LOG):
-            self.current_text += "\n" + self.ASCII_LOGO + "\nPress Enter or wait to start...\n"
-            boot_log_widget.update(Text(self.current_text, style="bold green"))
-            self.log_idx += 1
-            if "--test-boot" not in sys.argv:
-                self.set_timer(1.5, self.go_main)
-
-    def go_main(self):
-        self.app.switch_screen(MainScreen())
-
-    def on_key(self, event) -> None:
-        if event.key in ("enter", "return", "space"):
-            self.go_main()
-
-class ConvertModal(ModalScreen):
-    """Centering pop-up modal containing all conversion parameters."""
-    
-    def __init__(self, src_path: Path, **kwargs):
-        super().__init__(**kwargs)
-        self.src_path = src_path
-
-    def compose(self) -> ComposeResult:
-        yield Vertical(
-            Label("[*] CONVERSION SETTINGS", id="modal_title"),
-            
-            Label("Source File (Anypath):", classes="modal_label"),
-            Input(value=str(self.src_path), id="modal_src_path", placeholder="Input file path..."),
-            
-            Label("Save Destination (Anypath):", classes="modal_label"),
-            Input(placeholder="Type output path...", id="modal_dest_path"),
-            
-            Label("Target Format:", classes="modal_label"),
-            RadioSet(
-                RadioButton("OPPSIE (.oppsie)", value=True, id="modal_fmt_oppsie"),
-                RadioButton("PNG (.png)", id="modal_fmt_png"),
-                RadioButton("JPEG (.jpeg)", id="modal_fmt_jpg"),
-                RadioButton("WebP (.webp)", id="modal_fmt_webp"),
-                RadioButton("BMP (.bmp)", id="modal_fmt_bmp"),
-                id="modal_target_fmt"
-            ),
-            
-            Label("Lossy Level (Quantization):", classes="modal_label"),
-            Select(
-                options=[
-                    ("0 (Lossless)", 0),
-                    ("1 (Minimal Lossy)", 1),
-                    ("2", 2),
-                    ("3 (Balanced Lossy)", 3),
-                    ("4", 4),
-                    ("5 (Extra Savings)", 5),
-                    ("6", 6),
-                    ("7 (Maximum Size Savings)", 7)
-                ],
-                value=0,
-                allow_blank=False,
-                id="modal_lossy_level"
-            ),
-            
-            Horizontal(
-                Button("CONVERT [Enter]", variant="success", id="modal_btn_convert"),
-                Button("BATCH CONVERT", variant="primary", id="modal_btn_batch"),
-                Button("CANCEL [ESC]", variant="error", id="modal_btn_cancel"),
-                id="modal_buttons"
-            ),
-            id="modal_panel"
+def make_large_thumbnail(path, size=200):
+    try:
+        img = load_image(path)
+        thumb = img.copy()
+        thumb.thumbnail((size, size), Image.Resampling.LANCZOS)
+        if thumb.mode == "RGBA":
+            thumb = thumb.convert("RGB")
+        elif thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+        data = thumb.tobytes("raw", "RGB")
+        qi = QtGui.QImage(
+            data, thumb.width, thumb.height,
+            3 * thumb.width, QtGui.QImage.Format_RGB888
         )
-
-    def on_mount(self) -> None:
-        self.update_dest_path()
-        self.query_one("#modal_dest_path").focus()
-
-    def update_dest_path(self):
-        try:
-            target_fmt_set = self.query_one("#modal_target_fmt")
-            selected_rad = target_fmt_set.pressed_button
-            target_fmt = "oppsie"
-            if selected_rad:
-                id_to_fmt = {
-                    "modal_fmt_oppsie": "oppsie",
-                    "modal_fmt_png": "png",
-                    "modal_fmt_jpg": "jpeg",
-                    "modal_fmt_webp": "webp",
-                    "modal_fmt_bmp": "bmp"
-                }
-                target_fmt = id_to_fmt.get(selected_rad.id, "oppsie")
-                
-            dest_ext = ".oppsie" if target_fmt == "oppsie" else f".{target_fmt}"
-            src_str = self.query_one("#modal_src_path").value.strip().strip('"').strip("'").strip()
-            src_path = Path(src_str).resolve()
-            dest_name = src_path.stem + "_converted" + dest_ext
-            dest_path = src_path.parent / dest_name
-            self.query_one("#modal_dest_path").value = str(dest_path)
-        except Exception:
-            pass
-
-    def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
-        self.update_dest_path()
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id == "modal_src_path":
-            # Real-time update output file path while typing input file path
-            self.update_dest_path()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "modal_btn_cancel":
-            self.dismiss(None)
-        else:
-            action = "convert" if event.button.id == "modal_btn_convert" else "batch"
-            src = self.query_one("#modal_src_path").value.strip().strip('"').strip("'").strip()
-            dest = self.query_one("#modal_dest_path").value.strip().strip('"').strip("'").strip()
-            
-            target_fmt_set = self.query_one("#modal_target_fmt")
-            selected_rad = target_fmt_set.pressed_button
-            target_fmt = "oppsie"
-            if selected_rad:
-                id_to_fmt = {
-                    "modal_fmt_oppsie": "oppsie",
-                    "modal_fmt_png": "png",
-                    "modal_fmt_jpg": "jpeg",
-                    "modal_fmt_webp": "webp",
-                    "modal_fmt_bmp": "bmp"
-                }
-                target_fmt = id_to_fmt.get(selected_rad.id, "oppsie")
-                
-            lossy = self.query_one("#modal_lossy_level").value
-            
-            self.dismiss({
-                "action": action,
-                "src": src,
-                "dest": dest,
-                "target_fmt": target_fmt,
-                "lossy_level": lossy
-            })
-
-class OpenPathModal(ModalScreen):
-    def compose(self) -> ComposeResult:
-        yield Vertical(
-            Label("OPEN FILE", id="open_modal_title"),
-            Label("Enter an image or .oppsie path:", classes="modal_label"),
-            Input(placeholder="C:/path/to/file.png", id="open_path_input"),
-            Horizontal(
-                Button("OPEN", variant="success", id="open_path_btn"),
-                Button("CANCEL", variant="error", id="cancel_open_btn"),
-                id="modal_buttons"
-            ),
-            id="modal_panel"
-        )
-
-    def on_mount(self) -> None:
-        self.query_one("#open_path_input").focus()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "cancel_open_btn":
-            self.dismiss(None)
-        else:
-            self.dismiss(self.query_one("#open_path_input").value)
+        return QtGui.QPixmap.fromImage(qi)
+    except Exception:
+        return None
 
 
-class MainScreen(Screen):
-    BINDINGS = [
-        ("o", "focus_browser", "Focus Browser"),
-        ("p", "open_file_prompt", "Open File"),
-        ("c", "popup_convert", "Convert Settings [C]"),
-        ("q", "quit", "Quit"),
-    ]
-    
-    selected_file = reactive(None)
-    
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        yield Horizontal(
-            Vertical(
-                Label("[+] FILE BROWSER", classes="panel_title"),
-                ImageDirectoryTree(os.getcwd(), id="dir_tree"),
-                id="left_panel"
-            ),
-            Vertical(
-                Horizontal(
-                    PreviewWidget("ORIGINAL PREVIEW", id="orig_preview", classes="preview_container"),
-                    PreviewWidget("CONVERTED PREVIEW", id="conv_preview", classes="preview_container"),
-                    id="previews_area"
-                ),
-                Vertical(
-                    Label("[>] CONSOLE PROMPT", classes="panel_title"),
-                    Horizontal(
-                        Label("> Select a file to begin.", id="status_text"),
-                        Button("OPEN [P]", variant="primary", id="open_btn"),
-                        Button("CONVERT [C]", variant="success", id="convert_btn"),
-                        id="console_controls"
-                    ),
-                    ProgressBar(total=100, show_percentage=True, id="progress_bar"),
-                    id="status_bar"
-                ),
-                id="center_panel"
-            ),
-            id="workspace"
-        )
-        yield Footer()
+# ═══════════════════════════════════════════════════════════════════════════
+#  CONVERSION WORKER  (with cancellation)
+# ═══════════════════════════════════════════════════════════════════════════
+class ConversionWorker(QtCore.QThread):
+    progress = QtCore.pyqtSignal(int)
+    status = QtCore.pyqtSignal(str)
+    done = QtCore.pyqtSignal(object)
 
-    def on_mount(self) -> None:
-        self.query_one("#progress_bar").display = False
-        self.call_after_refresh(self.try_open_cli_path)
-        
-    def action_focus_browser(self):
-        self.query_one("#dir_tree").focus()
+    def __init__(self, src, dst, fmt, lossy, parent=None):
+        super().__init__(parent)
+        self.src = src
+        self.dst = dst
+        self.fmt = fmt
+        self.lossy = lossy
+        self._cancel = False
 
-    def action_open_file_prompt(self) -> None:
-        self.app.push_screen(OpenPathModal(), callback=self.on_open_path_modal_dismissed)
+    def cancel(self):
+        self._cancel = True
 
-    def try_open_cli_path(self) -> None:
-        for arg in sys.argv[1:]:
-            if arg.startswith("-"):
-                continue
-            candidate = Path(arg).expanduser()
-            if candidate.exists() and candidate.is_file():
-                self.selected_file = candidate.resolve()
-                self.load_preview_from_path(candidate)
-                return
-
-    def on_open_path_modal_dismissed(self, result) -> None:
-        if not result:
-            return
-
-        try:
-            self.selected_file = Path(str(result).strip().strip('"').strip("'").strip()).resolve()
-            self.load_preview_from_path(self.selected_file)
-            self.update_status(f"> Opened file: {self.selected_file.name}")
-        except Exception as exc:
-            self.update_status(f"> Error opening file: {exc}", is_error=True)
-
-    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        self.selected_file = event.path
-        self.update_status(f"> Loaded file: {self.selected_file.name} ({self.get_file_size_str(self.selected_file)})")
-        self.load_preview_from_path(self.selected_file)
-
-    def load_preview_from_path(self, path: Path):
-        try:
-            img = load_image_from_path(path)
-            self.selected_file = Path(path).resolve()
-            self.query_one("#orig_preview").set_image(img)
-            self.query_one("#conv_preview").set_image(None)
-        except Exception as e:
-            self.update_status(f"> Error loading preview: {e}", is_error=True)
-
-    def action_popup_convert(self) -> None:
-        self.trigger_popup()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "open_btn":
-            self.action_open_file_prompt()
-        elif event.button.id == "convert_btn":
-            self.trigger_popup()
-
-    def trigger_popup(self):
-        if not self.selected_file:
-            self.update_status("> Error: Please select an image in the browser first.", is_error=True)
-            return
-            
-        self.app.push_screen(ConvertModal(self.selected_file), callback=self.on_modal_dismissed)
-
-    def on_modal_dismissed(self, result) -> None:
-        if result is None:
-            # Cancelled by user
-            return
-            
-        action = result["action"]
-        src_path_str = result["src"]
-        dest_path_str = result["dest"]
-        target_fmt = result["target_fmt"]
-        lossy_level = result["lossy_level"]
-        
-        try:
-            src_path = Path(src_path_str).resolve()
-        except Exception as e:
-            self.update_status(f"> Error parsing input path: {e}", is_error=True)
-            return
-
-        if action == "convert":
-            try:
-                dest_path = Path(dest_path_str).resolve()
-            except Exception as e:
-                self.update_status(f"> Error parsing output path: {e}", is_error=True)
-                return
-                
-            if not src_path.exists() or not src_path.is_file():
-                self.update_status(f"> Error: Input file does not exist: {src_path_str}", is_error=True)
-                return
-                
-            if dest_path.is_dir() or dest_path_str.endswith(("/", "\\")):
-                dest_ext = ".oppsie" if target_fmt == "oppsie" else f".{target_fmt}"
-                dest_path = dest_path / (src_path.stem + "_converted" + dest_ext)
-                
-            try:
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                self.update_status(f"> Error creating output folder: {e}", is_error=True)
-                return
-                
-            self.update_status(f"> Encoding {src_path.name} to {dest_path.name}...")
-            self.query_one("#orig_preview").start_scan()
-            self.query_one("#conv_preview").start_scan()
-            
-            pbar = self.query_one("#progress_bar")
-            pbar.display = True
-            pbar.progress = 10
-            
-            self.run_worker(
-                self.async_convert(src_path, dest_path, target_fmt, lossy_level),
-                name="convert_worker",
-                group="conversions"
-            )
-        else:  # batch convert
-            src_dir = src_path.parent
-            dest_dir = src_dir / "oppsie_batch_out"
-            
-            self.update_status(f"> Initiating batch convert in folder: {src_dir.name} -> {dest_dir.name}...")
-            self.query_one("#progress_bar").display = True
-            self.query_one("#progress_bar").progress = 0
-            
-            self.run_worker(
-                self.async_batch_convert(src_dir, dest_dir, target_fmt, lossy_level),
-                name="batch_worker"
-            )
-
-    async def async_convert(self, src_path: Path, dest_path: Path, target_fmt: str, lossy_level: int):
+    def run(self):
         t0 = time.perf_counter()
-        pbar = self.query_one("#progress_bar")
-        pbar.progress = 30
-        
         try:
-            if target_fmt == "oppsie":
-                convert_to_oppsie(str(src_path), str(dest_path), lossy_level=lossy_level)
+            self.status.emit(f"Encoding {Path(self.src).name}…")
+            self.progress.emit(10)
+            if self._cancel:
+                self.done.emit({"ok": False, "error": "Cancelled"})
+                return
+            if self.fmt == "oppsie":
+                convert_to_oppsie(self.src, self.dst, lossy_level=self.lossy)
             else:
-                convert_from_oppsie(str(src_path), str(dest_path))
-                
-            pbar.progress = 80
-            time.sleep(0.2)
-            elapsed = (time.perf_counter() - t0) * 1000.0
-            
-            if dest_path.suffix.lower() == ".oppsie":
-                with open(dest_path, "rb") as f:
-                    decoded_img = oppsie.decode(f.read())
+                convert_from_oppsie(self.src, self.dst)
+            if self._cancel:
+                self.done.emit({"ok": False, "error": "Cancelled"})
+                return
+            self.progress.emit(80)
+            ms = (time.perf_counter() - t0) * 1000
+            dp = Path(self.dst)
+            if dp.suffix.lower() == ".oppsie":
+                with open(dp, "rb") as f:
+                    oppsie.decode(f.read())
             else:
-                decoded_img = Image.open(dest_path)
-                
-            pbar.progress = 100
-            self.call_after_refresh(self.conversion_complete, src_path, dest_path, decoded_img, elapsed)
+                Image.open(dp)
+            self.progress.emit(100)
+            self.done.emit({
+                "ok": True,
+                "src": Path(self.src),
+                "dst": dp,
+                "ms": ms,
+            })
         except Exception as e:
-            self.call_after_refresh(self.conversion_failed, str(e))
+            self.done.emit({"ok": False, "error": str(e)})
 
-    def conversion_complete(self, src_path: Path, dest_path: Path, decoded_img: Image.Image, elapsed: float):
-        self.query_one("#orig_preview").stop_scan()
-        self.query_one("#conv_preview").stop_scan()
-        self.query_one("#progress_bar").display = False
-        
-        self.query_one("#conv_preview").set_image(decoded_img)
-        self.query_one("#dir_tree").reload()
-        
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  STATUS DOT  (pulsing glow)
+# ═══════════════════════════════════════════════════════════════════════════
+class StatusDot(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(12, 12)
+        self._color = QtGui.QColor(C["green"])
+        self._phase = 0.0
+        self._active = True
+        self._timer = QtCore.QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(40)
+
+    def setColor(self, name):
+        self._color = QtGui.QColor(C.get(name, name))
+        self.update()
+
+    def setActive(self, on):
+        self._active = on
+        if not on:
+            self._phase = 0
+        self.update()
+
+    def _tick(self):
+        if self._active:
+            self._phase = (self._phase + 0.12) % (2 * math.pi)
+            self.update()
+
+    def paintEvent(self, _):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        alpha = int(20 + 18 * math.sin(self._phase)) if self._active else 10
+        glow = QtGui.QColor(self._color)
+        glow.setAlpha(max(0, alpha))
+        p.setPen(QtCore.Qt.NoPen)
+        p.setBrush(glow)
+        rect = self.rect().adjusted(-4, -4, 4, 4)
+        p.drawEllipse(rect)
+        p.setBrush(self._color)
+        p.drawEllipse(self.rect())
+        p.end()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  GLOW PROGRESS BAR
+# ═══════════════════════════════════════════════════════════════════════════
+class GlowBar(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = 0
+        self.setFixedHeight(8)
+        self._anim = QtCore.QPropertyAnimation(self, b"value")
+        self._anim.setDuration(350)
+        self._anim.setEasingCurve(QtCore.QEasingCurve.OutCubic)
+
+    def _get_value(self):
+        return self._value
+
+    def _set_value(self, v):
+        self._value = max(0, min(100, v))
+        self.update()
+
+    value = QtCore.pyqtProperty(int, _get_value, _set_value)
+
+    def animateTo(self, v):
+        self._anim.stop()
+        self._anim.setStartValue(self._value)
+        self._anim.setEndValue(max(0, min(100, v)))
+        self._anim.start()
+
+    def reset(self):
+        self._anim.stop()
+        self._value = 0
+        self.update()
+
+    def paintEvent(self, _):
+        if self._value <= 0:
+            return
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        rect = self.rect()
+        radius = rect.height() / 2
+        fill_width = max(radius * 2, rect.width() * self._value / 100)
+        fill_rect = QtCore.QRectF(rect.x(), rect.y(), fill_width, rect.height())
+        glow = QtGui.QColor(C["mauve"])
+        glow.setAlpha(25)
+        p.setPen(QtCore.Qt.NoPen)
+        p.setBrush(glow)
+        p.drawRoundedRect(fill_rect.adjusted(-2, -3, 2, 3), radius + 2, radius + 2)
+        grad = QtGui.QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
+        grad.setColorAt(0, QtGui.QColor(C["mauve"]))
+        grad.setColorAt(1, QtGui.QColor(C["pink"]))
+        p.setBrush(grad)
+        p.drawRoundedRect(fill_rect, radius, radius)
+        shimmer = QtGui.QLinearGradient(0, rect.y(), 0, rect.center().y())
+        shimmer.setColorAt(0, QtGui.QColor(255, 255, 255, 50))
+        shimmer.setColorAt(1, QtGui.QColor(255, 255, 255, 0))
+        p.setBrush(shimmer)
+        p.drawRoundedRect(fill_rect, radius, radius)
+        p.end()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  FILE ITEM  (7-zip style row with checkbox)
+# ═══════════════════════════════════════════════════════════════════════════
+class FileItem(QtWidgets.QFrame):
+    removeRequested = QtCore.pyqtSignal(object)
+    selectedChanged = QtCore.pyqtSignal(bool)
+
+    def __init__(self, path: Path, parent=None):
+        super().__init__(parent)
+        self.path = path
+        self.target_fmt = "oppsie"
+        self._selected = False
+        self._preview_window = None
+        self._hover_timer = QtCore.QTimer(self)
+        self._hover_timer.setSingleShot(True)
+        self._hover_timer.setInterval(600)
+        self._hover_timer.timeout.connect(self._show_preview)
+        self.setAcceptDrops(False)
+        self._build()
+        self._apply_shadow()
+
+    def _apply_shadow(self):
+        shadow = QtWidgets.QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(12)
+        shadow.setColor(QtGui.QColor(0, 0, 0, 60))
+        shadow.setOffset(0, 2)
+        self.setGraphicsEffect(shadow)
+
+    def _build(self):
+        self.setFixedHeight(52)
+        self.setObjectName("fileItem")
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(10, 6, 10, 6)
+        lay.setSpacing(10)
+
+        # Checkbox (7-zip style)
+        self._check = QtWidgets.QCheckBox()
+        self._check.setChecked(True)
+        self._check.setObjectName("fileCheck")
+        self._check.setFixedSize(18, 18)
+        lay.addWidget(self._check)
+
+        # Thumbnail
+        self._thumb_label = QtWidgets.QLabel()
+        self._thumb_label.setFixedSize(36, 36)
+        self._thumb_label.setAlignment(QtCore.Qt.AlignCenter)
+        self._thumb_label.setObjectName("thumbLabel")
+        pm = make_thumbnail(self.path, 36)
+        if pm:
+            self._thumb_label.setPixmap(pm)
+        else:
+            self._thumb_label.setText("📄")
+            self._thumb_label.setStyleSheet("font-size:18px;")
+        lay.addWidget(self._thumb_label)
+
+        # File info (name + size in columns)
+        name = QtWidgets.QLabel(self.path.name)
+        name.setObjectName("fileName")
+        lay.addWidget(name, 1)
+
         try:
-            src_size = src_path.stat().st_size
-            dest_size = dest_path.stat().st_size
-            ratio = (dest_size / src_size) * 100.0 if src_size > 0 else 0
-            size_info = f"({self.get_file_size_str(src_path)}) -> ({self.get_file_size_str(dest_path)}) | Ratio: {ratio:.1f}%"
-        except Exception:
-            size_info = ""
-            
-        self.update_status(
-            f"> CONVERSION COMPLETE: {src_path.name} -> {dest_path.name} | {size_info} | Time: {elapsed:.1f} ms"
+            size_str = human_size(self.path.stat().st_size)
+        except OSError:
+            size_str = "—"
+        size = QtWidgets.QLabel(size_str)
+        size.setObjectName("fileSize")
+        size.setFixedWidth(70)
+        size.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        lay.addWidget(size)
+
+        # Arrow
+        arrow = QtWidgets.QLabel("→")
+        arrow.setObjectName("arrow")
+        arrow.setAlignment(QtCore.Qt.AlignCenter)
+        arrow.setFixedWidth(20)
+        lay.addWidget(arrow)
+
+        # Format combo
+        self._fmt = QtWidgets.QComboBox()
+        self._fmt.addItems(FORMATS)
+        self._fmt.setCurrentText("oppsie")
+        self._fmt.setObjectName("fmtCombo")
+        self._fmt.setFixedWidth(95)
+        self._fmt.currentTextChanged.connect(
+            lambda t: setattr(self, "target_fmt", t)
+        )
+        lay.addWidget(self._fmt)
+
+        # Status icon
+        self._status_label = QtWidgets.QLabel()
+        self._status_label.setFixedSize(22, 22)
+        self._status_label.setAlignment(QtCore.Qt.AlignCenter)
+        lay.addWidget(self._status_label)
+
+        # Remove button
+        self._remove_btn = QtWidgets.QPushButton("✕")
+        self._remove_btn.setObjectName("removeBtn")
+        self._remove_btn.setFixedSize(24, 24)
+        self._remove_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._remove_btn.clicked.connect(
+            lambda: self.removeRequested.emit(self)
+        )
+        lay.addWidget(self._remove_btn)
+
+        self._thumb_label.installEventFilter(self)
+        self.installEventFilter(self)
+
+    def isChecked(self):
+        return self._check.isChecked()
+
+    def setChecked(self, v):
+        self._check.setChecked(v)
+
+    def eventFilter(self, obj, event):
+        if obj == self._thumb_label or obj == self:
+            if event.type() == QtCore.QEvent.Enter:
+                self._hover_timer.start()
+            elif event.type() == QtCore.QEvent.Leave:
+                self._hover_timer.stop()
+                self._hide_preview()
+        return super().eventFilter(obj, event)
+
+    def _show_preview(self):
+        if self._preview_window is not None:
+            return
+        pm = make_large_thumbnail(self.path, 200)
+        if pm is None:
+            return
+        self._preview_window = QtWidgets.QFrame()
+        self._preview_window.setWindowFlags(QtCore.Qt.Popup)
+        self._preview_window.setObjectName("previewWindow")
+        layout = QtWidgets.QVBoxLayout(self._preview_window)
+        layout.setContentsMargins(6, 6, 6, 6)
+        label = QtWidgets.QLabel()
+        label.setPixmap(pm)
+        label.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(label)
+        self._preview_window.setStyleSheet(f"""
+            QFrame#previewWindow {{
+                background: {C['crust']};
+                border: 1px solid {C['surface0']};
+                border-radius: 8px;
+            }}
+        """)
+        pos = self._thumb_label.mapToGlobal(QtCore.QPoint(0, 0))
+        self._preview_window.move(pos.x() - 20, pos.y() - pm.height() - 10)
+        self._preview_window.show()
+
+    def _hide_preview(self):
+        if self._preview_window:
+            self._preview_window.close()
+            self._preview_window.deleteLater()
+            self._preview_window = None
+
+    def setSelected(self, selected):
+        self._selected = selected
+        self.setProperty("selected", selected)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.selectedChanged.emit(selected)
+
+    def isSelected(self):
+        return self._selected
+
+    def _set_state(self, state):
+        self.setProperty("state", state)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def setConverting(self):
+        self._status_label.setText("⟳")
+        self._status_label.setStyleSheet(f"color:{C['yellow']};font-size:15px;")
+        self._fmt.setEnabled(False)
+        self._remove_btn.setEnabled(False)
+        self._set_state("converting")
+
+    def setDone(self):
+        self._status_label.setText("✓")
+        self._status_label.setStyleSheet(f"color:{C['green']};font-size:15px;font-weight:bold;")
+        self._set_state("done")
+
+    def setError(self):
+        self._status_label.setText("✕")
+        self._status_label.setStyleSheet(f"color:{C['red']};font-size:15px;font-weight:bold;")
+        self._set_state("error")
+
+    def reset(self):
+        self._status_label.setText("")
+        self._status_label.setStyleSheet("")
+        self._fmt.setEnabled(True)
+        self._remove_btn.setEnabled(True)
+        self._set_state("")
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            parent = self.parent()
+            while parent and not isinstance(parent, FileQueue):
+                parent = parent.parent()
+            if parent:
+                parent.selectItem(self)
+        super().mousePressEvent(event)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  FILE QUEUE  (drop zone + scrollable list)
+# ═══════════════════════════════════════════════════════════════════════════
+class FileQueue(QtWidgets.QWidget):
+    changed = QtCore.pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._items: List[FileItem] = []
+        self._selected_item: Optional[FileItem] = None
+        self.setAcceptDrops(True)
+        self._dash_offset = 0
+        self._anim_timer = QtCore.QTimer(self)
+        self._anim_timer.timeout.connect(self._tick)
+        self._anim_timer.start(45)
+        self._build()
+
+    def _tick(self):
+        if not self._items:
+            self._dash_offset = (self._dash_offset + 1) % 24
+            self.update()
+
+    def _build(self):
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        self._stack = QtWidgets.QStackedWidget()
+        self._stack.setObjectName("stack")
+        lay.addWidget(self._stack)
+
+        # Empty drop zone
+        dz = QtWidgets.QWidget()
+        dz.setObjectName("dropZone")
+        dl = QtWidgets.QVBoxLayout(dz)
+        dl.setAlignment(QtCore.Qt.AlignCenter)
+        dl.setSpacing(10)
+
+        cloud = QtWidgets.QLabel()
+        cloud.setPixmap(self._cloud(64, 64))
+        cloud.setAlignment(QtCore.Qt.AlignCenter)
+        dl.addWidget(cloud)
+
+        title = QtWidgets.QLabel("Drop files here to add")
+        title.setObjectName("dzTitle")
+        title.setAlignment(QtCore.Qt.AlignCenter)
+        dl.addWidget(title)
+
+        sub = QtWidgets.QLabel("PNG · JPG · WEBP · BMP · OPPSIE")
+        sub.setObjectName("dzSub")
+        sub.setAlignment(QtCore.Qt.AlignCenter)
+        dl.addWidget(sub)
+
+        self._stack.addWidget(dz)
+
+        # File list scroll area
+        self._scroll = QtWidgets.QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self._scroll.setObjectName("fileScroll")
+        self._scroll.viewport().setAcceptDrops(False)
+
+        self._list_widget = QtWidgets.QWidget()
+        self._list_layout = QtWidgets.QVBoxLayout(self._list_widget)
+        self._list_layout.setContentsMargins(6, 6, 6, 6)
+        self._list_layout.setSpacing(6)
+        self._list_layout.addStretch()
+        self._scroll.setWidget(self._list_widget)
+        self._stack.addWidget(self._scroll)
+
+    def paintEvent(self, event):
+        if self._items:
+            return
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        r = self.rect().adjusted(1, 1, -1, -1)
+        bg = QtGui.QColor(C["mantle"])
+        bg.setAlpha(220)
+        p.setBrush(bg)
+        p.setPen(QtCore.Qt.NoPen)
+        p.drawRoundedRect(r, 14, 14)
+        pen = QtGui.QPen(QtGui.QColor(C["surface1"]), 2)
+        pen.setStyle(QtCore.Qt.DashLine)
+        pen.setDashPattern([6, 4])
+        pen.setDashOffset(self._dash_offset)
+        p.setPen(pen)
+        p.setBrush(QtCore.Qt.NoBrush)
+        p.drawRoundedRect(r, 14, 14)
+        p.end()
+
+    def selectItem(self, item):
+        if self._selected_item:
+            self._selected_item.setSelected(False)
+        self._selected_item = item
+        if item:
+            item.setSelected(True)
+
+    def selectedItem(self):
+        return self._selected_item
+
+    def addFile(self, path: Path):
+        for item in self._items:
+            if item.path.resolve() == path.resolve():
+                return
+        item = FileItem(path)
+        item.removeRequested.connect(self.removeFile)
+        item.selectedChanged.connect(self._on_item_selected)
+        self._items.append(item)
+        self._list_layout.insertWidget(self._list_layout.count() - 1, item)
+        self._stack.setCurrentIndex(1)
+        self.changed.emit()
+
+    def _on_item_selected(self, selected):
+        if selected:
+            for it in self._items:
+                if it is not self.sender():
+                    it.setSelected(False)
+            self._selected_item = self.sender()
+
+    def removeFile(self, item: FileItem):
+        if item in self._items:
+            if self._selected_item == item:
+                self._selected_item = None
+            self._items.remove(item)
+            self._list_layout.removeWidget(item)
+            item.deleteLater()
+            if not self._items:
+                self._stack.setCurrentIndex(0)
+            self.changed.emit()
+
+    def clear(self):
+        for item in list(self._items):
+            self._list_layout.removeWidget(item)
+            item.deleteLater()
+        self._items.clear()
+        self._selected_item = None
+        self._stack.setCurrentIndex(0)
+        self.changed.emit()
+
+    def items(self) -> List[FileItem]:
+        return list(self._items)
+
+    def checkedItems(self) -> List[FileItem]:
+        return [it for it in self._items if it.isChecked()]
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dragMoveEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        for url in e.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.is_file():
+                self.addFile(p)
+        e.acceptProposedAction()
+
+    @staticmethod
+    def _cloud(w, h):
+        pm = QtGui.QPixmap(w, h)
+        pm.fill(QtCore.Qt.transparent)
+        p = QtGui.QPainter(pm)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        grad = QtGui.QLinearGradient(0, 0, 0, h)
+        grad.setColorAt(0, QtGui.QColor(C["pink"]))
+        grad.setColorAt(1, QtGui.QColor(C["mauve"]))
+        p.setBrush(QtGui.QBrush(grad))
+        p.setPen(QtCore.Qt.NoPen)
+        cx, cy = w / 2, h / 2
+        p.drawEllipse(QtCore.QRectF(cx - 20, cy - 14, 26, 26))
+        p.drawEllipse(QtCore.QRectF(cx - 8, cy - 24, 28, 28))
+        p.drawEllipse(QtCore.QRectF(cx + 8, cy - 14, 26, 26))
+        p.drawRoundedRect(QtCore.QRectF(cx - 20, cy - 4, 44, 18), 8, 8)
+        p.setBrush(QtGui.QColor(255, 255, 255, 30))
+        p.drawRoundedRect(QtCore.QRectF(cx - 12, cy - 18, 30, 12), 6, 6)
+        p.end()
+        return pm
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  GROUP BOX  (7-zip style titled section)
+# ═══════════════════════════════════════════════════════════════════════════
+class SectionGroup(QtWidgets.QGroupBox):
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
+        self.setObjectName("sectionGroup")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CUSTOM TITLE BAR
+# ═══════════════════════════════════════════════════════════════════════════
+class TitleBar(QtWidgets.QWidget):
+    closeClicked = QtCore.pyqtSignal()
+    minimizeClicked = QtCore.pyqtSignal()
+    maximizeClicked = QtCore.pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(38)
+        self.setObjectName("titleBar")
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(14, 0, 10, 0)
+        layout.setSpacing(0)
+
+        self.icon_label = QtWidgets.QLabel("⬡")
+        self.icon_label.setObjectName("titleIcon")
+        layout.addWidget(self.icon_label)
+
+        self.title_label = QtWidgets.QLabel("Oppsie Convert")
+        self.title_label.setObjectName("titleText")
+        layout.addWidget(self.title_label)
+
+        layout.addStretch()
+
+        self.min_btn = QtWidgets.QPushButton("–")
+        self.min_btn.setObjectName("titleMinBtn")
+        self.min_btn.setFixedSize(32, 24)
+        self.min_btn.clicked.connect(self.minimizeClicked)
+        layout.addWidget(self.min_btn)
+
+        self.max_btn = QtWidgets.QPushButton("□")
+        self.max_btn.setObjectName("titleMaxBtn")
+        self.max_btn.setFixedSize(32, 24)
+        self.max_btn.clicked.connect(self.maximizeClicked)
+        layout.addWidget(self.max_btn)
+
+        self.close_btn = QtWidgets.QPushButton("✕")
+        self.close_btn.setObjectName("titleCloseBtn")
+        self.close_btn.setFixedSize(32, 24)
+        self.close_btn.clicked.connect(self.closeClicked)
+        layout.addWidget(self.close_btn)
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            if self.window().windowHandle():
+                self.window().windowHandle().startSystemMove()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  MAIN WINDOW  (7-zip style two-panel layout)
+# ═══════════════════════════════════════════════════════════════════════════
+class MainWindow(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.setWindowTitle("Oppsie Convert")
+        self.resize(1040, 680)
+        self.setMinimumSize(880, 560)
+
+        self._worker: Optional[ConversionWorker] = None
+        self._converting = False
+        self._output_folder: Optional[Path] = None
+
+        self._build()
+        self._style()
+        self._setup_shortcuts()
+
+    def _build(self):
+        central = QtWidgets.QWidget()
+        central.setObjectName("centralWidget")
+        self.setCentralWidget(central)
+
+        main_layout = QtWidgets.QVBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Title bar
+        self.title_bar = TitleBar()
+        self.title_bar.closeClicked.connect(self.close)
+        self.title_bar.minimizeClicked.connect(self.showMinimized)
+        self.title_bar.maximizeClicked.connect(self._toggle_maximize)
+        main_layout.addWidget(self.title_bar)
+
+        # Content
+        content = QtWidgets.QWidget()
+        content.setObjectName("content")
+        content_layout = QtWidgets.QVBoxLayout(content)
+        content_layout.setContentsMargins(20, 16, 20, 18)
+        content_layout.setSpacing(12)
+
+        # Header row (archive name + format like 7-zip)
+        header = QtWidgets.QHBoxLayout()
+        header.setSpacing(10)
+        brand = QtWidgets.QLabel("⬡  Oppsie Convert")
+        brand.setObjectName("brand")
+        header.addWidget(brand)
+        header.addStretch()
+        version = QtWidgets.QLabel("v1.3.0")
+        version.setObjectName("ver")
+        header.addWidget(version)
+        content_layout.addLayout(header)
+
+        # Two-panel split: left = file list, right = settings
+        split = QtWidgets.QHBoxLayout()
+        split.setSpacing(14)
+
+        # ─── Left panel: Files ─────────────────────────────
+        left_panel = QtWidgets.QVBoxLayout()
+        left_panel.setSpacing(8)
+
+        files_header = QtWidgets.QHBoxLayout()
+        files_title = QtWidgets.QLabel("Files to Convert")
+        files_title.setObjectName("panelTitle")
+        files_header.addWidget(files_title)
+        files_header.addStretch()
+
+        self._count_label = QtWidgets.QLabel("0 items")
+        self._count_label.setObjectName("countLabel")
+        files_header.addWidget(self._count_label)
+        left_panel.addLayout(files_header)
+
+        self._queue = FileQueue()
+        left_panel.addWidget(self._queue, 1)
+
+        # File action buttons (Add / Clear / Select All)
+        file_actions = QtWidgets.QHBoxLayout()
+        file_actions.setSpacing(8)
+        self._add_btn = QtWidgets.QPushButton("+  Add Files")
+        self._add_btn.setObjectName("addBtn")
+        self._add_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._add_btn.clicked.connect(self._browse)
+        file_actions.addWidget(self._add_btn)
+
+        self._select_all_btn = QtWidgets.QPushButton("Select All")
+        self._select_all_btn.setObjectName("secondaryBtn")
+        self._select_all_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._select_all_btn.clicked.connect(self._select_all)
+        file_actions.addWidget(self._select_all_btn)
+
+        self._clear_btn = QtWidgets.QPushButton("Clear")
+        self._clear_btn.setObjectName("secondaryBtn")
+        self._clear_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._clear_btn.clicked.connect(self._clear_queue)
+        file_actions.addWidget(self._clear_btn)
+
+        file_actions.addStretch()
+        left_panel.addLayout(file_actions)
+
+        left_wrap = QtWidgets.QWidget()
+        left_wrap.setLayout(left_panel)
+        split.addWidget(left_wrap, 3)
+
+        # ─── Right panel: Settings (7-zip style sections) ──
+        right_panel = QtWidgets.QVBoxLayout()
+        right_panel.setSpacing(10)
+
+        settings_title = QtWidgets.QLabel("Conversion Settings")
+        settings_title.setObjectName("panelTitle")
+        right_panel.addWidget(settings_title)
+
+        # Group 1: Archive
+        archive_group = SectionGroup("Archive")
+        ag_layout = QtWidgets.QVBoxLayout(archive_group)
+        ag_layout.setSpacing(8)
+        ag_layout.setContentsMargins(14, 18, 14, 12)
+
+        # Output format row
+        fmt_row = QtWidgets.QHBoxLayout()
+        fmt_label = QtWidgets.QLabel("Output format:")
+        fmt_label.setObjectName("fieldLabel")
+        fmt_label.setFixedWidth(110)
+        fmt_row.addWidget(fmt_label)
+
+        self._global_fmt = QtWidgets.QComboBox()
+        self._global_fmt.addItems(FORMATS)
+        self._global_fmt.setCurrentText("oppsie")
+        self._global_fmt.setObjectName("settingCombo")
+        self._global_fmt.currentTextChanged.connect(self._apply_global_format)
+        fmt_row.addWidget(self._global_fmt, 1)
+        ag_layout.addLayout(fmt_row)
+
+        # Output folder row
+        out_row = QtWidgets.QHBoxLayout()
+        out_label = QtWidgets.QLabel("Output folder:")
+        out_label.setObjectName("fieldLabel")
+        out_label.setFixedWidth(110)
+        out_row.addWidget(out_label)
+
+        self._out_path = QtWidgets.QLineEdit()
+        self._out_path.setReadOnly(True)
+        self._out_path.setPlaceholderText("Same as source")
+        self._out_path.setObjectName("outPath")
+        out_row.addWidget(self._out_path, 1)
+
+        self._out_btn = QtWidgets.QPushButton("…")
+        self._out_btn.setObjectName("browseBtn")
+        self._out_btn.setFixedSize(30, 28)
+        self._out_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._out_btn.clicked.connect(self._choose_output_folder)
+        out_row.addWidget(self._out_btn)
+        ag_layout.addLayout(out_row)
+
+        # Suffix row
+        suf_row = QtWidgets.QHBoxLayout()
+        suf_label = QtWidgets.QLabel("Filename suffix:")
+        suf_label.setObjectName("fieldLabel")
+        suf_label.setFixedWidth(110)
+        suf_row.addWidget(suf_label)
+
+        self._suffix_edit = QtWidgets.QLineEdit("_converted")
+        self._suffix_edit.setObjectName("outPath")
+        suf_row.addWidget(self._suffix_edit, 1)
+        ag_layout.addLayout(suf_row)
+
+        right_panel.addWidget(archive_group)
+
+        # Group 2: Compression
+        comp_group = SectionGroup("Compression")
+        cg_layout = QtWidgets.QVBoxLayout(comp_group)
+        cg_layout.setSpacing(8)
+        cg_layout.setContentsMargins(14, 18, 14, 12)
+
+        # Quality / compression level
+        q_row = QtWidgets.QHBoxLayout()
+        q_label = QtWidgets.QLabel("Compression level:")
+        q_label.setObjectName("fieldLabel")
+        q_label.setFixedWidth(110)
+        q_row.addWidget(q_label)
+
+        self._quality = QtWidgets.QComboBox()
+        self._quality.addItems([
+            "Lossless", "1 — Light", "2", "3 — Medium",
+            "4", "5", "6", "7 — Max"
+        ])
+        self._quality.setObjectName("settingCombo")
+        self._quality.setToolTip(
+            "Higher values give better quality but larger files.\n"
+            "Lossless is only available for OPPsie format."
+        )
+        q_row.addWidget(self._quality, 1)
+        cg_layout.addLayout(q_row)
+
+        # Update mode (keep / overwrite) - decorative but functional
+        ow_row = QtWidgets.QHBoxLayout()
+        ow_label = QtWidgets.QLabel("Overwrite mode:")
+        ow_label.setObjectName("fieldLabel")
+        ow_label.setFixedWidth(110)
+        ow_row.addWidget(ow_label)
+
+        self._overwrite = QtWidgets.QComboBox()
+        self._overwrite.addItems(["Ask before overwrite", "Always overwrite", "Skip existing"])
+        self._overwrite.setObjectName("settingCombo")
+        ow_row.addWidget(self._overwrite, 1)
+        cg_layout.addLayout(ow_row)
+
+        right_panel.addWidget(comp_group)
+
+        # Group 3: Options
+        opt_group = SectionGroup("Options")
+        og_layout = QtWidgets.QVBoxLayout(opt_group)
+        og_layout.setSpacing(6)
+        og_layout.setContentsMargins(14, 18, 14, 12)
+
+        self._open_after = QtWidgets.QCheckBox("Open output folder when done")
+        self._open_after.setObjectName("optCheck")
+        og_layout.addWidget(self._open_after)
+
+        self._keep_meta = QtWidgets.QCheckBox("Preserve metadata (EXIF)")
+        self._keep_meta.setObjectName("optCheck")
+        self._keep_meta.setChecked(True)
+        og_layout.addWidget(self._keep_meta)
+
+        self._delete_orig = QtWidgets.QCheckBox("Delete original files after success")
+        self._delete_orig.setObjectName("optCheck")
+        og_layout.addWidget(self._delete_orig)
+
+        right_panel.addWidget(opt_group)
+
+        right_panel.addStretch()
+
+        right_wrap = QtWidgets.QWidget()
+        right_wrap.setLayout(right_panel)
+        right_wrap.setObjectName("rightPanel")
+        right_wrap.setFixedWidth(360)
+        split.addWidget(right_wrap)
+
+        content_layout.addLayout(split, 1)
+
+        # ─── Progress bar ────────────────────────────────────
+        self._bar = GlowBar()
+        self._bar.hide()
+        content_layout.addWidget(self._bar)
+
+        # ─── Bottom action bar (OK / Cancel / Help style) ──
+        action_bar = QtWidgets.QHBoxLayout()
+        action_bar.setSpacing(10)
+
+        # Status (left)
+        status_row = QtWidgets.QHBoxLayout()
+        status_row.setSpacing(8)
+        self._dot = StatusDot()
+        status_row.addWidget(self._dot)
+        self._status_label = QtWidgets.QLabel("Ready — add files to begin")
+        self._status_label.setObjectName("statusText")
+        self._status_label.setWordWrap(False)
+        status_row.addWidget(self._status_label, 1)
+        action_bar.addLayout(status_row, 1)
+
+        # Buttons (right) — 7-zip OK / Cancel / Help
+        self._help_btn = QtWidgets.QPushButton("Help")
+        self._help_btn.setObjectName("ghostBtn")
+        self._help_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._help_btn.clicked.connect(self._show_help)
+        action_bar.addWidget(self._help_btn)
+
+        self._cancel_btn = QtWidgets.QPushButton("Cancel")
+        self._cancel_btn.setObjectName("cancelBtn")
+        self._cancel_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._cancel_btn.hide()
+        self._cancel_btn.clicked.connect(self._cancel_conversion)
+        action_bar.addWidget(self._cancel_btn)
+
+        self._convert_btn = QtWidgets.QPushButton("OK — Convert")
+        self._convert_btn.setObjectName("convBtn")
+        self._convert_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._convert_btn.setEnabled(False)
+        self._convert_btn.clicked.connect(self._convert)
+        action_bar.addWidget(self._convert_btn)
+
+        content_layout.addLayout(action_bar)
+
+        main_layout.addWidget(content)
+
+        self._queue.changed.connect(self._on_queue_changed)
+
+    def _setup_shortcuts(self):
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+O"), self).activated.connect(self._browse)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Return"), self).activated.connect(self._convert)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Delete"), self).activated.connect(self._delete_selected)
+        QtWidgets.QShortcut(QtGui.QKeySequence("Esc"), self).activated.connect(self._cancel_conversion)
+        QtWidgets.QShortcut(QtGui.QKeySequence("F1"), self).activated.connect(self._show_help)
+
+    def _select_all(self):
+        items = self._queue.items()
+        if not items:
+            return
+        all_checked = all(it.isChecked() for it in items)
+        for it in items:
+            it.setChecked(not all_checked)
+
+    def _apply_global_format(self, fmt):
+        for it in self._queue.items():
+            it._fmt.setCurrentText(fmt)
+
+    def _show_help(self):
+        QtWidgets.QMessageBox.information(
+            self, "Help — Oppsie Convert",
+            "Shortcuts:\n"
+            "  Ctrl+O      — Add files\n"
+            "  Ctrl+Enter  — Start conversion\n"
+            "  Delete      — Remove selected file\n"
+            "  Esc         — Cancel conversion\n"
+            "  F1          — This help\n\n"
+            "Tips:\n"
+            "  • Hover a thumbnail to preview.\n"
+            "  • Click a row to select it.\n"
+            "  • Use the per-file dropdown to override the global format.\n"
+            "  • Uncheck the box on the left to skip a file."
         )
 
-    def conversion_failed(self, error_msg: str):
-        self.query_one("#orig_preview").stop_scan()
-        self.query_one("#conv_preview").stop_scan()
-        self.query_one("#progress_bar").display = False
-        self.update_status(f"> Conversion failed: {error_msg}", is_error=True)
-
-    async def async_batch_convert(self, src_dir: Path, dest_dir: Path, target_fmt: str, lossy_level: int):
-        try:
-            to_oppsie_exts = (".png", ".jpg", ".jpeg", ".bmp", ".webp", ".gif")
-            if target_fmt == "oppsie":
-                files = []
-                for ext in to_oppsie_exts:
-                    files.extend(src_dir.glob(f"*{ext}"))
-                    files.extend(src_dir.glob(f"*{ext.upper()}"))
-            else:
-                files = list(src_dir.glob("*.oppsie")) + list(src_dir.glob("*.OPPSIE"))
-                
-            files = list(set(files))
-            total = len(files)
-            
-            if total == 0:
-                self.call_after_refresh(self.batch_complete, [], "No convertible files found.")
-                return
-                
-            results = []
-            for idx, f in enumerate(files):
-                self.call_after_refresh(self.update_status, f"> Batch: converting {f.name}... ({idx+1}/{total})")
-                pbar = self.query_one("#progress_bar")
-                self.call_after_refresh(setattr, pbar, "progress", int((idx / total) * 100))
-                
-                if target_fmt == "oppsie":
-                    dest_file = dest_dir / f"{f.stem}.oppsie"
-                    try:
-                        convert_to_oppsie(str(f), str(dest_file), lossy_level)
-                        results.append((f, dest_file, True, ""))
-                    except Exception as e:
-                        results.append((f, dest_file, False, str(e)))
-                else:
-                    dest_file = dest_dir / f"{f.stem}.{target_fmt}"
-                    try:
-                        convert_from_oppsie(str(f), str(dest_file))
-                        results.append((f, dest_file, True, ""))
-                    except Exception as e:
-                        results.append((f, dest_file, False, str(e)))
-                        
-                time.sleep(0.1)
-                
-            pbar = self.query_one("#progress_bar")
-            self.call_after_refresh(setattr, pbar, "progress", 100)
-            self.call_after_refresh(self.batch_complete, results, "")
-        except Exception as e:
-            self.call_after_refresh(self.conversion_failed, f"Batch error: {e}")
-
-    def batch_complete(self, results, error_msg):
-        self.query_one("#progress_bar").display = False
-        self.query_one("#dir_tree").reload()
-        
-        if error_msg:
-            self.update_status(f"> Batch process ended: {error_msg}", is_error=True)
+    def _delete_selected(self):
+        if self._converting:
             return
-            
-        successes = sum(1 for r in results if r[2])
-        self.update_status(f"> BATCH DONE: Processed {len(results)} files. Success: {successes}, Failed: {len(results)-successes}.")
+        item = self._queue.selectedItem()
+        if item:
+            self._queue.removeFile(item)
 
-    def update_status(self, text: str, is_error: bool = False):
-        self.status_target_text = text
-        self.status_is_error = is_error
-        self.status_current_idx = 0
-        self.status_displayed_text = ""
-        
-        if hasattr(self, "typing_timer"):
-            try:
-                self.typing_timer.stop()
-            except Exception:
-                pass
-        self.typing_timer = self.set_interval(0.012, self.type_status_char)
-
-    def type_status_char(self):
-        status_label = self.query_one("#status_text")
-        target = self.status_target_text
-        
-        if self.status_current_idx < len(target):
-            char = target[self.status_current_idx]
-            self.status_displayed_text += char
-            self.status_current_idx += 1
-            
-            style = "bold red" if self.status_is_error else "bold green"
-            status_label.update(Text(self.status_displayed_text + "█", style=style))
+    def _toggle_maximize(self):
+        if self.isMaximized():
+            self.showNormal()
         else:
-            style = "bold red" if self.status_is_error else "bold green"
-            status_label.update(Text(self.status_displayed_text, style=style))
-            self.typing_timer.stop()
+            self.showMaximized()
 
-    def get_file_size_str(self, path: Path) -> str:
-        try:
-            cleaned_str = str(path).strip().strip('"').strip("'").strip()
-            size = Path(cleaned_str).stat().st_size
-            if size < 1024:
-                return f"{size} B"
-            elif size < 1024 * 1024:
-                return f"{size/1024:.1f} KB"
-            else:
-                return f"{size/(1024*1024):.1f} MB"
-        except Exception:
-            return "Unknown size"
+    # ─── Slots ────────────────────────────────────────────────
+    def _choose_output_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Output Folder", str(Path.home())
+        )
+        if folder:
+            self._output_folder = Path(folder)
+            self._out_path.setText(str(self._output_folder))
+        else:
+            self._output_folder = None
+            self._out_path.clear()
 
-class OppsieApp(App):
-    CSS = """
-    Screen {
-        background: #1e1e2e;
-        color: #cdd6f4;
-    }
+    def _on_queue_changed(self):
+        count = len(self._queue.items())
+        checked = len(self._queue.checkedItems())
+        self._count_label.setText(f"{checked}/{count} selected" if count else "0 items")
+        self._convert_btn.setEnabled(checked > 0 and not self._converting)
+        if count == 0:
+            self._status_label.setText("Ready — add files to begin")
+            self._dot.setColor("green")
+        else:
+            self._status_label.setText(f"{count} file{'s' if count > 1 else ''} in queue · {checked} selected")
+            self._dot.setColor("green")
+
+    def _clear_queue(self):
+        if self._converting:
+            return
+        reply = QtWidgets.QMessageBox.question(
+            self, "Clear Queue",
+            "Remove all files from the queue?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+        )
+        if reply == QtWidgets.QMessageBox.Yes:
+            self._queue.clear()
+
+    def _browse(self):
+        if self._converting:
+            return
+        paths, _ = QtWidgets.QFileDialog.getOpenFileNames(
+            self,
+            "Add Files",
+            str(Path.home()),
+            "Images (*.png *.jpg *.jpeg *.bmp *.webp *.gif *.oppsie);;All files (*)"
+        )
+        for p in paths:
+            self._queue.addFile(Path(p))
+
+    def _convert(self):
+        items = self._queue.checkedItems()
+        if not items or self._converting:
+            return
+
+        self._converting = True
+        self._convert_btn.setEnabled(False)
+        self._add_btn.setEnabled(False)
+        self._clear_btn.setEnabled(False)
+        self._select_all_btn.setEnabled(False)
+        self._quality.setEnabled(False)
+        self._out_btn.setEnabled(False)
+        self._global_fmt.setEnabled(False)
+        self._cancel_btn.show()
+        self._cancel_btn.setEnabled(True)
+
+        lossy = self._quality.currentIndex()
+        for item in items:
+            item.reset()
+
+        self._convert_next(items, 0, lossy)
+
+    def _convert_next(self, items, idx, lossy):
+        while idx < len(items) and items[idx]._status_label.text() in ("✓", "✕"):
+            idx += 1
+
+        if idx >= len(items):
+            self._on_all_done(items)
+            return
+
+        item = items[idx]
+        item.setConverting()
+        self._status_label.setText(
+            f"Converting {item.path.name}  ({idx + 1}/{len(items)})…"
+        )
+        self._dot.setColor("yellow")
+        self._dot.setActive(True)
+        self._bar.show()
+        self._bar.reset()
+        self._bar.animateTo(5)
+
+        if self._output_folder:
+            dst_dir = self._output_folder
+        else:
+            dst_dir = item.path.parent
+        ext = ".oppsie" if item.target_fmt == "oppsie" else f".{item.target_fmt}"
+        suffix = self._suffix_edit.text().strip() or ""
+        dst = dst_dir / (item.path.stem + suffix + ext)
+
+        # Overwrite handling
+        if dst.exists():
+            mode = self._overwrite.currentIndex()
+            if mode == 2:  # Skip
+                item._status_label.setText("⊘")
+                item._status_label.setStyleSheet(f"color:{C['overlay1']};font-size:14px;")
+                self._convert_next(items, idx + 1, lossy)
+                return
+            elif mode == 0:  # Ask
+                reply = QtWidgets.QMessageBox.question(
+                    self, "File Exists",
+                    f"{dst.name} already exists.\nOverwrite?",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+                )
+                if reply != QtWidgets.QMessageBox.Yes:
+                    self._convert_next(items, idx + 1, lossy)
+                    return
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+
+        self._worker = ConversionWorker(
+            str(item.path), str(dst), item.target_fmt, lossy
+        )
+        self._worker.progress.connect(self._bar.animateTo)
+        self._worker.status.connect(self._status_label.setText)
+        self._worker.done.connect(
+            lambda r, i=item, ii=idx, itms=items, l=lossy:
+                self._on_file_done(r, i, ii, itms, l)
+        )
+        self._worker.start()
+
+    def _on_file_done(self, result, item, idx, items, lossy):
+        if result.get("ok"):
+            item.setDone()
+            src, dst, ms = result["src"], result["dst"], result["ms"]
+            try:
+                src_size = src.stat().st_size
+                dst_size = dst.stat().st_size
+                ratio = dst_size / src_size * 100 if src_size else 0
+                self._status_label.setText(
+                    f"{src.name} → {dst.name}  |  "
+                    f"{human_size(src_size)} → {human_size(dst_size)}  |  "
+                    f"{ratio:.1f}%  |  {ms:.1f} ms"
+                )
+                # Optional: delete original
+                if self._delete_orig.isChecked():
+                    try:
+                        src.unlink()
+                    except OSError:
+                        pass
+            except OSError:
+                self._status_label.setText(
+                    f"{src.name} → {dst.name}  |  {ms:.1f} ms"
+                )
+        else:
+            item.setError()
+            err = result.get("error", "Unknown error")
+            self._status_label.setText(f"Failed: {err}")
+            self._dot.setColor("red")
+            self._dot.setActive(False)
+
+        self._convert_next(items, idx + 1, lossy)
+
+    def _on_all_done(self, items):
+        self._converting = False
+        self._bar.hide()
+        self._convert_btn.setEnabled(True)
+        self._add_btn.setEnabled(True)
+        self._clear_btn.setEnabled(True)
+        self._select_all_btn.setEnabled(True)
+        self._quality.setEnabled(True)
+        self._out_btn.setEnabled(True)
+        self._global_fmt.setEnabled(True)
+        self._cancel_btn.hide()
+
+        done = sum(1 for i in items if i._status_label.text() == "✓")
+        failed = sum(1 for i in items if i._status_label.text() == "✕")
+
+        if failed == 0:
+            msg = f"All {done} file{'s' if done != 1 else ''} converted successfully"
+            self._status_label.setText(msg)
+            self._dot.setColor("green")
+            self._dot.setActive(True)
+            if self._open_after.isChecked() and self._output_folder:
+                QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(self._output_folder)))
+            QtWidgets.QMessageBox.information(self, "Conversion Complete", msg)
+        else:
+            msg = f"{done} succeeded, {failed} failed"
+            self._status_label.setText(msg)
+            self._dot.setColor("peach")
+            self._dot.setActive(False)
+            QtWidgets.QMessageBox.warning(self, "Conversion Complete", msg)
+
+    def _cancel_conversion(self):
+        if not self._converting:
+            return
+        if self._worker and self._worker.isRunning():
+            self._worker.cancel()
+            self._worker.terminate()
+            self._worker.wait(1000)
+            self._worker = None
+        self._converting = False
+        self._bar.hide()
+        self._convert_btn.setEnabled(True)
+        self._add_btn.setEnabled(True)
+        self._clear_btn.setEnabled(True)
+        self._select_all_btn.setEnabled(True)
+        self._quality.setEnabled(True)
+        self._out_btn.setEnabled(True)
+        self._global_fmt.setEnabled(True)
+        self._cancel_btn.hide()
+        self._status_label.setText("Conversion cancelled")
+        self._dot.setColor("peach")
+        self._dot.setActive(False)
+
+    def closeEvent(self, event):
+        if self._worker and self._worker.isRunning():
+            self._worker.cancel()
+            self._worker.terminate()
+            self._worker.wait(2000)
+        event.accept()
+
+    # ─── Styling ──────────────────────────────────────────────
+    def _style(self):
+        self.setStyleSheet(f"""
+            QWidget#centralWidget {{
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                    stop:0 rgba(30,30,46,0.94),
+                    stop:1 rgba(24,24,37,0.97));
+                border-radius: 16px;
+                border: 1px solid rgba(255,255,255,0.06);
+            }}
+
+            /* ─── Title bar ─────────────────────────────────── */
+            QWidget#titleBar {{
+                background: rgba(17,17,27,0.7);
+                border-top-left-radius: 16px;
+                border-top-right-radius: 16px;
+                border-bottom: 1px solid rgba(255,255,255,0.04);
+            }}
+            QLabel#titleIcon {{
+                color: {C['mauve']};
+                font-size: 18px;
+                padding-left: 6px;
+            }}
+            QLabel#titleText {{
+                color: {C['text']};
+                font-size: 13px;
+                font-weight: 600;
+                padding-left: 8px;
+                letter-spacing: 0.3px;
+            }}
+            QPushButton#titleMinBtn,
+            QPushButton#titleMaxBtn,
+            QPushButton#titleCloseBtn {{
+                background: transparent;
+                border: none;
+                color: {C['overlay2']};
+                font-size: 13px;
+                font-weight: 500;
+                padding: 0;
+                border-radius: 4px;
+            }}
+            QPushButton#titleMinBtn:hover,
+            QPushButton#titleMaxBtn:hover {{
+                background: rgba(255,255,255,0.08);
+                color: {C['text']};
+            }}
+            QPushButton#titleCloseBtn:hover {{
+                background: rgba(243,139,168,0.2);
+                color: {C['red']};
+            }}
+
+            QWidget#content {{
+                background: transparent;
+                border-bottom-left-radius: 16px;
+                border-bottom-right-radius: 16px;
+            }}
+
+            /* ─── Header ────────────────────────────────────── */
+            QLabel#brand {{
+                color: {C['mauve']};
+                font-size: 20px;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+            }}
+            QLabel#ver {{
+                color: {C['surface2']};
+                font-size: 11px;
+                padding-right: 2px;
+            }}
+
+            /* ─── Panel titles ─────────────────────────────── */
+            QLabel#panelTitle {{
+                color: {C['overlay2']};
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 1.2px;
+                text-transform: uppercase;
+                padding-bottom: 2px;
+            }}
+            QLabel#countLabel {{
+                color: {C['overlay1']};
+                font-size: 11px;
+                font-weight: 500;
+            }}
+
+            /* ─── Right panel background ───────────────────── */
+            QWidget#rightPanel {{
+                background: transparent;
+            }}
+
+            /* ─── Section group (7-zip style box) ──────────── */
+            QGroupBox#sectionGroup {{
+                background: rgba(17,17,27,0.5);
+                border: 1px solid {C['surface0']};
+                border-radius: 10px;
+                margin-top: 14px;
+                padding-top: 8px;
+                font-size: 11px;
+            }}
+            QGroupBox#sectionGroup::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 12px;
+                padding: 0 6px;
+                color: {C['mauve']};
+                font-weight: 700;
+                letter-spacing: 0.8px;
+                background: {C['base']};
+            }}
+
+            QLabel#fieldLabel {{
+                color: {C['overlay2']};
+                font-size: 12px;
+                font-weight: 500;
+            }}
+
+            /* ─── Drop zone ─────────────────────────────────── */
+            QWidget#dropZone {{ background: transparent; border: none; }}
+            QLabel#dzTitle {{
+                color: {C['text']};
+                font-size: 16px;
+                font-weight: 300;
+            }}
+            QLabel#dzSub {{
+                color: {C['overlay0']};
+                font-size: 11px;
+                letter-spacing: 1.5px;
+            }}
+
+            /* ─── File scroll area ──────────────────────────── */
+            QScrollArea#fileScroll {{
+                background: rgba(17,17,27,0.55);
+                border: 1px solid {C['surface0']};
+                border-radius: 10px;
+            }}
+
+            /* ─── File item ─────────────────────────────────── */
+            QFrame#fileItem {{
+                background: rgba(24,24,37,0.7);
+                border: 1px solid rgba(255,255,255,0.05);
+                border-radius: 8px;
+            }}
+            QFrame#fileItem[selected="true"] {{
+                border: 1px solid {C['mauve']};
+                background: rgba(203,166,247,0.08);
+            }}
+            QFrame#fileItem[state="converting"] {{
+                background: rgba(203,166,247,0.08);
+                border-color: rgba(203,166,247,0.25);
+            }}
+            QFrame#fileItem[state="done"] {{
+                background: rgba(166,227,161,0.06);
+                border-color: rgba(166,227,161,0.18);
+            }}
+            QFrame#fileItem[state="error"] {{
+                background: rgba(243,139,168,0.06);
+                border-color: rgba(243,139,168,0.18);
+            }}
+
+            QCheckBox#fileCheck {{
+                spacing: 0;
+            }}
+            QCheckBox#fileCheck::indicator {{
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                border: 1px solid {C['surface2']};
+                background: {C['crust']};
+            }}
+            QCheckBox#fileCheck::indicator:checked {{
+                background: {C['mauve']};
+                border-color: {C['mauve']};
+                image: none;
+            }}
+
+            QLabel#fileName {{
+                color: {C['text']};
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QLabel#fileSize {{
+                color: {C['overlay1']};
+                font-size: 11px;
+                font-family: "Cascadia Code", "Consolas", monospace;
+            }}
+            QLabel#arrow {{
+                color: {C['surface2']};
+                font-size: 14px;
+            }}
+
+            /* ─── Combo boxes ───────────────────────────────── */
+            QComboBox#fmtCombo, QComboBox#settingCombo {{
+                background: {C['crust']};
+                color: {C['text']};
+                border: 1px solid {C['surface0']};
+                border-radius: 6px;
+                padding: 5px 10px;
+                font-size: 12px;
+                font-weight: 500;
+                min-height: 20px;
+            }}
+            QComboBox#fmtCombo:hover, QComboBox#settingCombo:hover {{
+                border-color: {C['surface2']};
+            }}
+            QComboBox#fmtCombo::drop-down,
+            QComboBox#settingCombo::drop-down {{
+                border: none;
+                width: 20px;
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+            }}
+            QComboBox#fmtCombo::down-arrow,
+            QComboBox#settingCombo::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {C['overlay1']};
+                margin-right: 6px;
+            }}
+            QComboBox#fmtCombo QAbstractItemView,
+            QComboBox#settingCombo QAbstractItemView {{
+                background: {C['crust']};
+                color: {C['text']};
+                border: 1px solid {C['surface0']};
+                border-radius: 6px;
+                selection-background-color: {C['surface0']};
+                selection-color: {C['mauve']};
+                outline: none;
+                padding: 4px;
+            }}
+
+            /* ─── Line edits ────────────────────────────────── */
+            QLineEdit#outPath {{
+                background: {C['crust']};
+                color: {C['text']};
+                border: 1px solid {C['surface0']};
+                border-radius: 6px;
+                padding: 5px 8px;
+                font-size: 12px;
+            }}
+            QLineEdit#outPath:focus {{
+                border-color: {C['mauve']};
+            }}
+
+            /* ─── Buttons ───────────────────────────────────── */
+            QPushButton#addBtn {{
+                background: rgba(203,166,247,0.1);
+                color: {C['mauve']};
+                border: 1px solid rgba(203,166,247,0.3);
+                border-radius: 6px;
+                padding: 7px 14px;
+                font-size: 12px;
+                font-weight: 600;
+            }}
+            QPushButton#addBtn:hover {{
+                background: rgba(203,166,247,0.18);
+                border-color: {C['mauve']};
+            }}
+            QPushButton#addBtn:disabled {{
+                color: {C['surface2']};
+                border-color: {C['surface1']};
+                background: transparent;
+            }}
+
+            QPushButton#secondaryBtn {{
+                background: transparent;
+                color: {C['overlay2']};
+                border: 1px solid {C['surface0']};
+                border-radius: 6px;
+                padding: 7px 12px;
+                font-size: 12px;
+                font-weight: 500;
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background: rgba(255,255,255,0.04);
+                color: {C['text']};
+                border-color: {C['surface2']};
+            }}
+            QPushButton#secondaryBtn:disabled {{
+                color: {C['surface0']};
+                border-color: {C['surface0']};
+            }}
+
+            QPushButton#browseBtn {{
+                background: {C['surface0']};
+                color: {C['text']};
+                border: 1px solid {C['surface1']};
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 700;
+            }}
+            QPushButton#browseBtn:hover {{
+                background: {C['surface1']};
+                border-color: {C['surface2']};
+            }}
+            QPushButton#browseBtn:disabled {{
+                color: {C['surface2']};
+                background: {C['surface0']};
+            }}
+
+            /* ─── Primary convert button (OK style) ────────── */
+            QPushButton#convBtn {{
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 {C['mauve']}, stop:1 {C['pink']});
+                color: {C['base']};
+                border: none;
+                border-radius: 6px;
+                padding: 8px 22px;
+                font-weight: bold;
+                font-size: 13px;
+                min-width: 110px;
+            }}
+            QPushButton#convBtn:hover {{
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 {C['lavender']}, stop:1 {C['pink']});
+            }}
+            QPushButton#convBtn:disabled {{
+                background: {C['surface0']};
+                color: {C['surface2']};
+            }}
+
+            QPushButton#cancelBtn {{
+                background: rgba(243,139,168,0.12);
+                color: {C['red']};
+                border: 1px solid rgba(243,139,168,0.35);
+                border-radius: 6px;
+                padding: 8px 18px;
+                font-weight: bold;
+                font-size: 13px;
+            }}
+            QPushButton#cancelBtn:hover {{
+                background: rgba(243,139,168,0.22);
+                border-color: {C['red']};
+            }}
+
+            QPushButton#ghostBtn {{
+                background: transparent;
+                color: {C['overlay1']};
+                border: 1px solid {C['surface0']};
+                border-radius: 6px;
+                padding: 8px 14px;
+                font-size: 12px;
+                font-weight: 500;
+            }}
+            QPushButton#ghostBtn:hover {{
+                color: {C['text']};
+                border-color: {C['surface2']};
+                background: rgba(255,255,255,0.03);
+            }}
+
+            /* ─── Remove button ─────────────────────────────── */
+            QPushButton#removeBtn {{
+                background: transparent;
+                color: {C['surface2']};
+                border: none;
+                border-radius: 4px;
+                font-size: 13px;
+            }}
+            QPushButton#removeBtn:hover {{
+                background: rgba(243,139,168,0.15);
+                color: {C['red']};
+            }}
+            QPushButton#removeBtn:disabled {{
+                color: {C['surface0']};
+            }}
+
+            /* ─── Options checkboxes ────────────────────────── */
+            QCheckBox#optCheck {{
+                color: {C['subtext1']};
+                font-size: 12px;
+                spacing: 8px;
+                padding: 2px 0;
+            }}
+            QCheckBox#optCheck::indicator {{
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                border: 1px solid {C['surface2']};
+                background: {C['crust']};
+            }}
+            QCheckBox#optCheck::indicator:checked {{
+                background: {C['mauve']};
+                border-color: {C['mauve']};
+            }}
+
+            /* ─── Status label ──────────────────────────────── */
+            QLabel#statusText {{
+                color: {C['overlay2']};
+                font-size: 12px;
+                font-family: "Cascadia Code", "Consolas", monospace;
+            }}
+
+            /* ─── Scroll bars ───────────────────────────────── */
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {C['surface1']};
+                border-radius: 3px;
+                min-height: 24px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {C['surface2']};
+            }}
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {{
+                height: 0;
+            }}
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {{
+                background: none;
+            }}
+
+            /* ─── Message boxes ─────────────────────────────── */
+            QMessageBox {{
+                background: {C['base']};
+            }}
+            QMessageBox QLabel {{
+                color: {C['text']};
+                font-size: 13px;
+            }}
+            QMessageBox QPushButton {{
+                background: {C['surface0']};
+                color: {C['text']};
+                border: 1px solid {C['surface1']};
+                border-radius: 5px;
+                padding: 6px 16px;
+                font-size: 12px;
+                min-width: 60px;
+            }}
+            QMessageBox QPushButton:hover {{
+                background: {C['surface1']};
+                border-color: {C['surface2']};
+            }}
+        """)
 
 
-    Header {
-        background: #11111b;
-        color: #a6e3a1;
-        border-bottom: double #a6e3a1;
-    }
+# ═══════════════════════════════════════════════════════════════════════════
+#  ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════════════
+def main():
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+    app = QtWidgets.QApplication(sys.argv)
+    app.setStyle("Fusion")
 
-    Footer {
-        background: #11111b;
-        color: #b4befe;
-    }
+    palette = QtGui.QPalette()
+    palette.setColor(QtGui.QPalette.Window, QtGui.QColor(C["base"]))
+    palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(C["text"]))
+    palette.setColor(QtGui.QPalette.Base, QtGui.QColor(C["crust"]))
+    palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(C["surface0"]))
+    palette.setColor(QtGui.QPalette.Text, QtGui.QColor(C["text"]))
+    palette.setColor(QtGui.QPalette.Button, QtGui.QColor(C["surface0"]))
+    palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor(C["text"]))
+    app.setPalette(palette)
 
-    .panel_title {
-        background: #313244;
-        color: #cdd6f4;
-        text-style: bold;
-        padding: 0 1;
-        width: 100%;
-        text-align: center;
-    }
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
 
-    #workspace {
-        layout: horizontal;
-        height: 1fr;
-    }
-
-    #left_panel {
-        width: 32;
-        border: solid #313244;
-        background: #181825;
-    }
-    #left_panel:focus-within {
-        border: double #b4befe;
-    }
-
-    #center_panel {
-        width: 1fr;
-        height: 1fr;
-        border: solid #313244;
-        background: #1e1e2e;
-    }
-    #center_panel:focus-within {
-        border: double #b4befe;
-    }
-
-    #previews_area {
-        layout: horizontal;
-        height: 1fr;
-    }
-
-    .preview_container {
-        width: 1fr;
-        height: 1fr;
-        align: center middle;
-        background: #181825;
-        margin: 1 1;
-    }
-
-    #status_bar {
-        height: 8;
-        border-top: double #313244;
-        background: #11111b;
-        padding: 0 2;
-    }
-
-    #console_controls {
-        layout: horizontal;
-        height: 3;
-        align: center middle;
-
-        margin-top: 1;
-    }
-
-    #status_text {
-        width: 1fr;
-        height: 2;
-    }
-
-    #open_btn {
-        width: 12;
-    }
-
-    #convert_btn {
-        width: 16;
-    }
-
-    #progress_bar {
-        width: 100%;
-        margin-bottom: 1;
-    }
-
-    /* Modal Styling */
-    ConvertModal {
-        align: center middle;
-        background: rgba(0, 0, 0, 0.65);
-    }
-
-    #modal_panel {
-        width: 54;
-        height: auto;
-        border: double #b4befe;
-        background: #1e1e2e;
-        padding: 1 2;
-    }
-
-    #modal_title {
-        background: #89b4fa;
-        color: #11111b;
-        text-style: bold;
-        text-align: center;
-        width: 100%;
-        margin-bottom: 1;
-        height: 3;
-        content-align: center middle;
-    }
-
-    #open_modal_title {
-        background: #89b4fa;
-        color: #11111b;
-        text-style: bold;
-        text-align: center;
-        width: 100%;
-        margin-bottom: 1;
-        height: 3;
-        content-align: center middle;
-    }
-
-    .modal_label {
-        color: #b4befe;
-        text-style: bold;
-        margin-top: 1;
-    }
-
-    #modal_buttons {
-        margin-top: 2;
-        height: auto;
-    }
-
-    #modal_buttons Button {
-        width: 1fr;
-        margin: 0 1;
-    }
-
-    Input {
-        background: #181825;
-        color: #cdd6f4;
-        border: tall #313244;
-        padding: 0 1;
-        height: 3;
-        margin-bottom: 1;
-    }
-    Input:focus {
-        border: tall #b4befe;
-    }
-
-    /* Boot Splash screen styling */
-    .boot_container {
-        align: center middle;
-        height: 100%;
-        background: #11111b;
-    }
-
-    #boot_log {
-        width: 80;
-        height: 24;
-        border: double #a6e3a1;
-        background: #11111b;
-        padding: 1 2;
-    }
-    """
-
-    def on_mount(self) -> None:
-        self.title = ".oppsie Converter Dashboard"
-        self.push_screen(BootScreen())
 
 if __name__ == "__main__":
-    app = OppsieApp()
-    app.run()
+    main()

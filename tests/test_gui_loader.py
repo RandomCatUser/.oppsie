@@ -7,7 +7,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.gui import load_image_from_path
+from app.guibackup import load_image_from_path
 
 
 class TestGuiLoader(unittest.TestCase):
