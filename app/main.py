@@ -238,6 +238,7 @@ class Win95ProgressBar(QtWidgets.QWidget):
 class FileItem(QtWidgets.QFrame):
     removeRequested = QtCore.pyqtSignal(object)
     selectedChanged = QtCore.pyqtSignal(bool)
+    checkToggled = QtCore.pyqtSignal(object)  # ← NEW: notify when checkbox toggled
 
     def __init__(self, path: Path, parent=None):
         super().__init__(parent)
@@ -264,6 +265,7 @@ class FileItem(QtWidgets.QFrame):
         self._check.setChecked(True)
         self._check.setObjectName("fileCheck")
         self._check.setFixedSize(16, 16)
+        self._check.toggled.connect(lambda _: self.checkToggled.emit(self)) # ← NEW: emit signal
         lay.addWidget(self._check)
 
         self._thumb_label = QtWidgets.QLabel()
@@ -481,6 +483,7 @@ class FileQueue(QtWidgets.QWidget):
         item = FileItem(path)
         item.removeRequested.connect(self.removeFile)
         item.selectedChanged.connect(self._on_item_selected)
+        item.checkToggled.connect(self._on_item_toggled)  # ← NEW: connect signal
         self._items.append(item)
         self._list_layout.insertWidget(self._list_layout.count() - 1, item)
         self._stack.setCurrentIndex(1)
@@ -492,6 +495,9 @@ class FileQueue(QtWidgets.QWidget):
                 if it is not self.sender():
                     it.setSelected(False)
             self._selected_item = self.sender()
+
+    def _on_item_toggled(self, _item):  # ← NEW: emit changed signal to update UI
+        self.changed.emit()
 
     def removeFile(self, item: FileItem):
         if item in self._items:
@@ -1158,20 +1164,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 background: #FFCCCC; 
             }}
 
-            /* Checkboxes */
+            /* Checkboxes - Removed indicator styling so the native Windows style draws the checkmark properly */
             QCheckBox#fileCheck, QCheckBox#optCheck {{
                 spacing: 6px;
                 color: {C['text']};
                 font-size: 12px;
-            }}
-            QCheckBox#fileCheck::indicator, QCheckBox#optCheck::indicator {{
-                width: 13px; height: 13px;
-                background: {C['window']};
-                border: 1px solid {C['darker']};
-                border-top: 1px solid {C['darker']};
-                border-left: 1px solid {C['darker']};
-                border-right: 1px solid {C['light']};
-                border-bottom: 1px solid {C['light']};
             }}
 
             QLabel#thumbLabel {{
