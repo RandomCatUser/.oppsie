@@ -50,8 +50,8 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 ├── tests/                # Test Suite
 │   ├── test_codec.py     # Roundtrip and lossy correctness unit tests
 │   ├── test_converter.py # Format conversion and batch unit tests
-│   ├── test_gui_loader.py# GUI loading test
-│   └── test_preview_widget.py # Preview widget test
+│   ├── test_gui_loader.py# Viewer image loading test
+│   └── test_app_loader.py # Converter app helper tests
 ├── run_app.bat           # Launch the converter app without commands
 ├── run_viewer.bat        # Launch the image viewer without commands
 ├── README.md             # Project overview and guide
@@ -68,7 +68,7 @@ A lightweight, fast, and simple image format called **.oppsie** (inspired by QOI
 Install dependencies (Pillow, PyQt5):
 
 ```bash
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 2. Running the Converter GUI App (PyQt5)
